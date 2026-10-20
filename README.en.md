@@ -19,7 +19,7 @@ The same map exported and rendered by Tiled's `tmxrasterizer`, with the same pos
 - 16 built in tiles (ground, blocks, trees, a lamp post), all drawn in code with no third party art
 - Tiles taller than the grid (walls, trees) sit on the bottom of their cell, the same way Tiled draws them
 - Exports the whole map as a PNG
-- Exports .tmj plus a tileset PNG; opens isometric maps saved by Tiled (CSV layers, one image tileset, groups are fine)
+- Exports .tmj plus a tileset PNG; opens isometric maps saved by Tiled as .tmj or .tmx (CSV, base64, zlib and gzip layers, one image tileset, tile offsets and groups), including Tiled's own `isometric_grass_and_water.tmx` example
 - The current map is kept in the browser between visits
 
 | Action                                  | Keys                        |

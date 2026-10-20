@@ -28,6 +28,7 @@ interface TmjTileset {
   imageheight?: number;
   margin?: number;
   spacing?: number;
+  tileoffset?: { x: number; y: number };
 }
 
 export interface Tmj {
@@ -84,6 +85,9 @@ export function toTmj(map: TileMap, tileset: TilesetInfo): Tmj {
         columns: tileset.columns,
         margin: 0,
         spacing: 0,
+        ...(tileset.offsetX || tileset.offsetY
+          ? { tileoffset: { x: tileset.offsetX ?? 0, y: tileset.offsetY ?? 0 } }
+          : {}),
       },
     ],
   };
@@ -161,6 +165,7 @@ export function fromTmj(json: unknown): ImportedMap {
       tileHeight: ts.tileheight,
       columns: ts.columns,
       tileCount,
+      ...(ts.tileoffset ? { offsetX: ts.tileoffset.x, offsetY: ts.tileoffset.y } : {}),
     },
   };
 }

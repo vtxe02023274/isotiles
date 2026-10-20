@@ -19,6 +19,7 @@
     "@types/node": "^20.19.43",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
+    "happy-dom": "^21.0.3",
     "prettier": "^3.9.10",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.72.0",

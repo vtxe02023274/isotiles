@@ -11,6 +11,9 @@ export interface TilesetInfo {
   tileHeight: number;
   columns: number;
   tileCount: number;
+  /** Tiled's tileoffset: shifts every tile of the set when drawn. */
+  offsetX?: number;
+  offsetY?: number;
 }
 
 export interface Tileset extends TilesetInfo {

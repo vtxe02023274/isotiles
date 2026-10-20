@@ -63,7 +63,19 @@ export function render(
     const r = tileRect(tileset, gid - 1);
     const top = cellToPixel(map, cx, cy);
     // Bottom left of the image on the left and bottom vertices of the cell, as Tiled does.
-    ctx.drawImage(tileset.source, r.x, r.y, r.w, r.h, top.x - hw, top.y + 2 * hh - r.h, r.w, r.h);
+    const ox = tileset.offsetX ?? 0;
+    const oy = tileset.offsetY ?? 0;
+    ctx.drawImage(
+      tileset.source,
+      r.x,
+      r.y,
+      r.w,
+      r.h,
+      top.x - hw + ox,
+      top.y + 2 * hh - r.h + oy,
+      r.w,
+      r.h,
+    );
   };
 
   map.layers.forEach((layer, li) => {

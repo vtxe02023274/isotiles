@@ -18,6 +18,7 @@ import {
   type Tileset,
 } from './tileset.js';
 import { fromTmj, toTmj, TmjError } from './tmj.js';
+import { tmxToTmj } from './tmx.js';
 
 type Tool = 'paint' | 'erase' | 'fill' | 'rect' | 'pick';
 
@@ -322,6 +323,14 @@ palette.addEventListener('click', (e) => {
 
 // --- files -----------------------------------------------------------------
 
+async function decompress(data: Uint8Array, format: 'zlib' | 'gzip'): Promise<Uint8Array> {
+  // "deflate" in DecompressionStream is the zlib format Tiled writes.
+  const stream = new Blob([data as BlobPart])
+    .stream()
+    .pipeThrough(new DecompressionStream(format === 'zlib' ? 'deflate' : 'gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
 function download(name: string, blob: Blob): void {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -358,11 +367,14 @@ $('#export-tileset').addEventListener('click', () => {
 $<HTMLInputElement>('#import').addEventListener('change', async (e) => {
   const files = [...((e.target as HTMLInputElement).files ?? [])];
   (e.target as HTMLInputElement).value = '';
-  const tmjFile = files.find((f) => /\.(tmj|json)$/i.test(f.name));
-  if (!tmjFile)
-    return showStatus('pick a .tmj file, and its tileset image if it is not isotiles.png');
+  const tmjFile = files.find((f) => /\.(tmj|tmx|json)$/i.test(f.name));
+  if (!tmjFile) {
+    return showStatus('pick a .tmj or .tmx file, and its tileset image if it is not isotiles.png');
+  }
   try {
-    const imported = fromTmj(JSON.parse(await tmjFile.text()));
+    const text = await tmjFile.text();
+    const json = /\.tmx$/i.test(tmjFile.name) ? await tmxToTmj(text, decompress) : JSON.parse(text);
+    const imported = fromTmj(json);
     const imageName = imported.tileset.image.split(/[\\/]/).pop()!;
     const imageFile = files.find((f) => f.name === imageName);
     let source: CanvasImageSource = generated;
