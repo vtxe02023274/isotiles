@@ -145,10 +145,11 @@ export function fromTmj(json: unknown): ImportedMap {
     layers: [],
   };
 
-  const visit = (layers: TmjLayer[], prefix: string) => {
+  // A hidden group hides everything inside it, like in Tiled.
+  const visit = (layers: TmjLayer[], prefix: string, visible: boolean) => {
     for (const l of layers) {
       if (l.type === 'group') {
-        visit(l.layers ?? [], `${prefix}${l.name}/`);
+        visit(l.layers ?? [], `${prefix}${l.name}/`, visible && l.visible !== false);
         continue;
       }
       if (l.type !== 'tilelayer') continue;
@@ -156,7 +157,7 @@ export function fromTmj(json: unknown): ImportedMap {
         throw new TmjError(`layer ${l.name}: set the layer format to CSV in Tiled`);
       }
       const layer = newLayer(prefix + l.name, map.width, map.height);
-      layer.visible = l.visible !== false;
+      layer.visible = visible && l.visible !== false;
       const data = l.data ?? [];
       for (let i = 0; i < layer.data.length && i < data.length; i++) {
         const gid = data[i]! & GID_MASK;
@@ -166,7 +167,7 @@ export function fromTmj(json: unknown): ImportedMap {
       map.layers.push(layer);
     }
   };
-  visit(tmj.layers, '');
+  visit(tmj.layers, '', true);
   if (!map.layers.length) map.layers.push(newLayer('Ground', map.width, map.height));
 
   return {
