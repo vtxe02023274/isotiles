@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { deflateSync, gunzipSync, gzipSync, inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { fromTmj } from '../src/tmj.js';
+import { fromTmj, toTmj } from '../src/tmj.js';
 import { tmxToTmj } from '../src/tmx.js';
 
 const decompress = async (data: Uint8Array, format: 'zlib' | 'gzip') =>
@@ -52,6 +52,87 @@ describe('tmxToTmj', () => {
     expect(fromTmj(tmj).map.layers.map((l) => [l.name, l.visible])).toEqual([
       ['g/h/a', false],
       ['v/b', true],
+    ]);
+  });
+
+  it('keeps properties, layer settings, objects and image layers through export', async () => {
+    const tmj = await tmxToTmj(
+      map(`<properties><property name="music" value="town"/></properties>
+ <layer id="1" name="a" width="2" height="2" opacity="0.5" offsetx="10" offsety="-8" tintcolor="#ff0000">
+  <properties><property name="solid" type="bool" value="true"/><property name="cost" type="int" value="3"/></properties>
+  <data encoding="csv">2147483649,2,3,4</data>
+ </layer>
+ <group id="2" name="g" visible="0" opacity="0.8">
+  <objectgroup id="3" name="spawns" class="spawn" draworder="index">
+   <object id="4" name="start" type="player" x="32" y="16"><point/></object>
+   <object id="5" x="1" y="2" width="30" height="20" rotation="45"><ellipse/><properties><property name="note">two
+lines</property></properties></object>
+   <object id="6" x="0" y="0"><polygon points="0,0 10,5 -3,8"/></object>
+   <object id="7" x="5" y="5" width="80" height="20"><text wrap="1" pixelsize="12">hi</text></object>
+  </objectgroup>
+ </group>
+ <imagelayer id="4" name="sky" opacity="0.3" repeatx="1"><image source="sky.png" width="320" height="240"/></imagelayer>`),
+      decompress,
+    );
+    const imported = fromTmj(tmj);
+    const out = toTmj(imported.map, imported.tileset);
+
+    expect(out.properties).toEqual([{ name: 'music', type: 'string', value: 'town' }]);
+    expect(out.layers).toMatchObject([
+      {
+        type: 'tilelayer',
+        name: 'a',
+        opacity: 0.5,
+        offsetx: 10,
+        offsety: -8,
+        tintcolor: '#ff0000',
+        properties: [
+          { name: 'solid', type: 'bool', value: true },
+          { name: 'cost', type: 'int', value: 3 },
+        ],
+        data: [0x80000001, 2, 3, 4],
+      },
+      {
+        type: 'group',
+        name: 'g',
+        visible: false,
+        opacity: 0.8,
+        layers: [
+          {
+            type: 'objectgroup',
+            name: 'spawns',
+            class: 'spawn',
+            draworder: 'index',
+            objects: [
+              { id: 4, name: 'start', type: 'player', x: 32, y: 16, point: true },
+              {
+                id: 5,
+                width: 30,
+                height: 20,
+                rotation: 45,
+                ellipse: true,
+                properties: [
+                  {
+                    name: 'note',
+                    type: 'string',
+                    value: 'two\nlines',
+                  },
+                ],
+              },
+              {
+                id: 6,
+                polygon: [
+                  { x: 0, y: 0 },
+                  { x: 10, y: 5 },
+                  { x: -3, y: 8 },
+                ],
+              },
+              { id: 7, text: { text: 'hi', wrap: true, pixelsize: 12 } },
+            ],
+          },
+        ],
+      },
+      { type: 'imagelayer', name: 'sky', opacity: 0.3, repeatx: true, image: 'sky.png' },
     ]);
   });
 

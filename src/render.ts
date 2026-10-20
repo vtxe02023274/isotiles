@@ -1,5 +1,5 @@
 import { cellToPixel, drawOrder, type Point } from './iso.js';
-import type { TileMap } from './map.js';
+import { GID_MASK, type TileMap } from './map.js';
 import { tileRect, type Tileset } from './tileset.js';
 
 export interface View {
@@ -73,7 +73,8 @@ export function render(
   };
 
   const drawTile = (gid: number, cx: number, cy: number) => {
-    const r = tileRect(tileset, gid - 1);
+    // Flip flags of an imported map are kept but not drawn.
+    const r = tileRect(tileset, (gid & GID_MASK) - 1);
     const top = cellToPixel(map, cx, cy);
     // Bottom left of the image on the left and bottom vertices of the cell, as Tiled does.
     const ox = tileset.offsetX ?? 0;

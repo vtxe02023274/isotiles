@@ -7,9 +7,9 @@ import {
   pixelToCell,
   type Grid,
 } from '../src/iso.js';
-import { createMap, fillRect, floodFill, getTile, History, setTile } from '../src/map.js';
+import { createMap, fillRect, floodFill, getTile, History, newLayer, setTile } from '../src/map.js';
 import { GENERATED_TILESET } from '../src/tileset.js';
-import { fromTmj, toTmj, TmjError } from '../src/tmj.js';
+import { fromTmj, toTmj, TmjError, type Tmj } from '../src/tmj.js';
 
 const grid: Grid = { width: 10, height: 6, tileWidth: 64, tileHeight: 32 };
 
@@ -264,7 +264,7 @@ describe('tmj', () => {
     expect(back.tileset).toEqual(GENERATED_TILESET);
   });
 
-  it('reads layers inside groups, strips flip flags and maps firstgid', () => {
+  it('reads layers inside groups, keeps flip flags and maps firstgid', () => {
     const tmj = toTmj(createMap(2, 1), GENERATED_TILESET);
     tmj.tilesets[0]!.firstgid = 10;
     tmj.layers = [
@@ -276,7 +276,85 @@ describe('tmj', () => {
     ];
     const { map } = fromTmj(tmj);
     expect(map.layers.map((l) => l.name)).toEqual(['Level/Floor']);
-    expect(Array.from(map.layers[0]!.data)).toEqual([1, 3]);
+    expect(Array.from(map.layers[0]!.data)).toEqual([0x80000001, 3]);
+  });
+
+  it('writes back what the editor does not edit', () => {
+    const tmj = toTmj(createMap(2, 1), GENERATED_TILESET);
+    const music = [{ name: 'music', type: 'string', value: 'town' }];
+    const solid = [{ name: 'solid', type: 'bool', value: true }];
+    const spawn = { id: 4, name: 'start', x: 32, y: 16, width: 0, height: 0, point: true };
+    Object.assign(tmj, { properties: music, nextobjectid: 5, backgroundcolor: '#203040' });
+    tmj.layers = [
+      {
+        type: 'tilelayer',
+        name: 'a',
+        opacity: 0.5,
+        offsetx: 10,
+        offsety: -8,
+        tintcolor: '#ff0000',
+        properties: solid,
+        data: [1 | 0x80000000, 2],
+      },
+      {
+        type: 'group',
+        name: 'g',
+        visible: false,
+        opacity: 0.8,
+        properties: solid,
+        layers: [
+          { type: 'tilelayer', name: 'b', visible: true, data: [3, 0x40000004] },
+          { type: 'objectgroup', name: 'spawns', draworder: 'topdown', objects: [spawn] },
+        ],
+      },
+      { type: 'imagelayer', name: 'sky', image: 'sky.png', opacity: 0.3 },
+    ] as Tmj['layers'];
+
+    const { map } = fromTmj(JSON.parse(JSON.stringify(tmj)));
+    setTile(map, 0, 1, 0, 5);
+    map.layers.push(newLayer('added', 2, 1));
+    const out = toTmj(map, GENERATED_TILESET);
+
+    expect(out).toMatchObject({ properties: music, nextobjectid: 5, backgroundcolor: '#203040' });
+    expect(out.layers).toMatchObject([
+      {
+        type: 'tilelayer',
+        name: 'a',
+        opacity: 0.5,
+        offsetx: 10,
+        offsety: -8,
+        tintcolor: '#ff0000',
+        properties: solid,
+        data: [0x80000001, 5],
+      },
+      {
+        type: 'group',
+        name: 'g',
+        visible: false,
+        opacity: 0.8,
+        properties: solid,
+        layers: [
+          { type: 'tilelayer', name: 'b', visible: true, data: [3, 0x40000004] },
+          { type: 'objectgroup', name: 'spawns', draworder: 'topdown', objects: [spawn] },
+        ],
+      },
+      { type: 'imagelayer', name: 'sky', image: 'sky.png', opacity: 0.3 },
+      { type: 'tilelayer', name: 'added', opacity: 1, data: [0, 0] },
+    ]);
+
+    // Layer ids stay unique across groups and below nextlayerid.
+    const ids: number[] = [];
+    const collect = (layers: Tmj['layers']) =>
+      layers.forEach((l) => {
+        ids.push(l.id!);
+        collect(l.layers ?? []);
+      });
+    collect(out.layers);
+    expect(new Set(ids).size).toBe(6);
+    expect(out.nextlayerid).toBe(Math.max(...ids) + 1);
+
+    // A second round trip changes nothing.
+    expect(toTmj(fromTmj(JSON.parse(JSON.stringify(out))).map, GENERATED_TILESET)).toEqual(out);
   });
 
   it('hides the layers of a hidden group', () => {

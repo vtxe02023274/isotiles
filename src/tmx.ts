@@ -3,10 +3,126 @@ import { TmjError, type Tmj } from './tmj.js';
 /** Decompresses zlib ("zlib") or gzip ("gzip") data. */
 export type Decompress = (data: Uint8Array, format: 'zlib' | 'gzip') => Promise<Uint8Array>;
 
+type Fields = Record<string, unknown>;
+
+/** Attributes Tiled writes as numbers or as 0 / 1; everything else stays a string. */
+const NUMBERS = new Set([
+  'id',
+  'x',
+  'y',
+  'width',
+  'height',
+  'rotation',
+  'gid',
+  'opacity',
+  'offsetx',
+  'offsety',
+  'parallaxx',
+  'parallaxy',
+  'parallaxoriginx',
+  'parallaxoriginy',
+  'nextobjectid',
+  'nextlayerid',
+  'compressionlevel',
+  'hexsidelength',
+  'pixelsize',
+]);
+const BOOLEANS = new Set([
+  'visible',
+  'locked',
+  'repeatx',
+  'repeaty',
+  'wrap',
+  'bold',
+  'italic',
+  'underline',
+  'strikeout',
+  'kerning',
+]);
+
+/** An element's attributes with the value types a Tiled JSON file uses. */
+function attributes(el: Element): Fields {
+  const out: Fields = {};
+  for (const { name, value } of [...el.attributes]) {
+    out[name] = NUMBERS.has(name) ? Number(value) : BOOLEANS.has(name) ? value === '1' : value;
+  }
+  return out;
+}
+
+function propertyValue(p: Element): unknown {
+  const type = p.getAttribute('type') ?? 'string';
+  if (type === 'class') return propertyMap(p);
+  // Multi-line strings are written as the element's text.
+  const value = p.getAttribute('value') ?? p.textContent ?? '';
+  if (type === 'int' || type === 'float' || type === 'object') return Number(value);
+  if (type === 'bool') return value === 'true';
+  return value;
+}
+
+/** The members of a class property, as an object like in Tiled JSON. */
+function propertyMap(el: Element): Fields {
+  const out: Fields = {};
+  for (const p of el.querySelectorAll(':scope > properties > property')) {
+    out[p.getAttribute('name') ?? ''] = propertyValue(p);
+  }
+  return out;
+}
+
+/** `{ properties: [...] }` for an element that has any, else nothing. */
+function properties(el: Element): Fields {
+  const list = [...el.querySelectorAll(':scope > properties > property')].map((p) => {
+    const propertytype = p.getAttribute('propertytype');
+    return {
+      name: p.getAttribute('name') ?? '',
+      type: p.getAttribute('type') ?? 'string',
+      ...(propertytype ? { propertytype } : {}),
+      value: propertyValue(p),
+    };
+  });
+  return list.length ? { properties: list } : {};
+}
+
+const points = (text: string | null) =>
+  (text ?? '')
+    .trim()
+    .split(/\s+/)
+    .map((pair) => {
+      const [x, y] = pair.split(',').map(Number);
+      return { x: x ?? 0, y: y ?? 0 };
+    });
+
+function object(el: Element): Fields {
+  // Tiled 1.9 renamed the object type attribute to class; JSON still calls it type.
+  const { class: cls, type, ...attrs } = attributes(el);
+  const out: Fields = {
+    id: 0,
+    name: '',
+    type: cls ?? type ?? '',
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    rotation: 0,
+    visible: true,
+    ...attrs,
+    ...properties(el),
+  };
+  for (const child of el.children) {
+    if (child.tagName === 'ellipse' || child.tagName === 'point') out[child.tagName] = true;
+    if (child.tagName === 'polygon' || child.tagName === 'polyline') {
+      out[child.tagName] = points(child.getAttribute('points'));
+    }
+    if (child.tagName === 'text')
+      out.text = { text: child.textContent ?? '', ...attributes(child) };
+  }
+  return out;
+}
+
 /**
  * Converts a TMX (XML) map into the same shape as a Tiled JSON map, so the
  * rest of the editor only deals with one format. Tile data may be CSV or
- * base64, uncompressed, zlib or gzip.
+ * base64, uncompressed, zlib or gzip. Object groups, image layers and
+ * properties are converted too, so they can be written back on export.
  */
 export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tmj> {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
@@ -50,22 +166,27 @@ export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tm
   const layers = async (parent: Element): Promise<Tmj['layers']> => {
     const out: Tmj['layers'] = [];
     for (const el of [...parent.children]) {
+      const common = { name: '', ...attributes(el), ...properties(el) };
       if (el.tagName === 'group') {
-        out.push({
-          type: 'group',
-          name: el.getAttribute('name') ?? '',
-          visible: el.getAttribute('visible') !== '0',
-          layers: await layers(el),
-        });
+        out.push({ ...common, type: 'group', layers: await layers(el) });
       } else if (el.tagName === 'layer') {
         const data = el.querySelector(':scope > data');
+        out.push({ ...common, type: 'tilelayer', data: data ? await readData(data) : [] });
+      } else if (el.tagName === 'objectgroup') {
+        const objects = [...el.children].filter((c) => c.tagName === 'object').map(object);
+        out.push({ ...common, type: 'objectgroup', objects });
+      } else if (el.tagName === 'imagelayer') {
+        const image = el.querySelector(':scope > image');
         out.push({
-          type: 'tilelayer',
-          name: el.getAttribute('name') ?? '',
-          width: int(el, 'width'),
-          height: int(el, 'height'),
-          visible: el.getAttribute('visible') !== '0',
-          data: data ? await readData(data) : [],
+          ...common,
+          type: 'imagelayer',
+          image: image?.getAttribute('source') ?? '',
+          ...(image?.hasAttribute('width')
+            ? { imagewidth: int(image, 'width'), imageheight: int(image, 'height') }
+            : {}),
+          ...(image?.hasAttribute('trans')
+            ? { transparentcolor: `#${image.getAttribute('trans')}` }
+            : {}),
         });
       }
     }
@@ -94,6 +215,9 @@ export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tm
   };
 
   return {
+    // Map attributes such as backgroundcolor and nextobjectid, kept on export.
+    ...attributes(map),
+    ...properties(map),
     type: 'map',
     orientation: map.getAttribute('orientation') ?? 'orthogonal',
     staggeraxis: map.getAttribute('staggeraxis') ?? undefined,
