@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { cellToPixel, drawOrder, mapPixelSize, pixelToCell, type Grid } from '../src/iso.js';
+import {
+  cellToPixel,
+  drawOrder,
+  mapPixelSize,
+  neighbours,
+  pixelToCell,
+  type Grid,
+} from '../src/iso.js';
 import { createMap, fillRect, floodFill, getTile, History, setTile } from '../src/map.js';
 import { GENERATED_TILESET } from '../src/tileset.js';
 import { fromTmj, toTmj, TmjError } from '../src/tmj.js';
@@ -46,6 +53,88 @@ describe('iso', () => {
     for (let i = 1; i < order.length; i++) {
       expect(order[i]!.x + order[i]!.y).toBeGreaterThanOrEqual(order[i - 1]!.x + order[i - 1]!.y);
     }
+  });
+});
+
+describe('staggered', () => {
+  const rows: Grid = { ...grid, stagger: { axis: 'y', index: 'odd' } };
+  const columns: Grid = { ...grid, stagger: { axis: 'x', index: 'even' } };
+
+  it('shifts every other row or column like Tiled', () => {
+    expect(cellToPixel(rows, 0, 0)).toEqual({ x: 32, y: 0 });
+    expect(cellToPixel(rows, 0, 1)).toEqual({ x: 64, y: 16 });
+    expect(cellToPixel(rows, 2, 2)).toEqual({ x: 160, y: 32 });
+    expect(mapPixelSize(rows)).toEqual({ x: 10 * 64 + 32, y: 7 * 16 });
+
+    expect(cellToPixel(columns, 0, 0)).toEqual({ x: 32, y: 16 });
+    expect(cellToPixel(columns, 1, 0)).toEqual({ x: 64, y: 0 });
+    expect(mapPixelSize(columns)).toEqual({ x: 11 * 32, y: 6 * 32 + 16 });
+  });
+
+  it('maps every point inside a diamond back to its cell', () => {
+    for (const g of [rows, columns]) {
+      for (let cy = -1; cy <= g.height; cy++) {
+        for (let cx = -1; cx <= g.width; cx++) {
+          const top = cellToPixel(g, cx, cy);
+          for (const [dx, dy] of [
+            [0, 16],
+            [0, 1],
+            [31, 16],
+            [0, 31],
+            [-31, 16],
+          ] as const) {
+            expect(pixelToCell(g, top.x + dx, top.y + dy)).toEqual({ x: cx, y: cy });
+          }
+        }
+      }
+    }
+  });
+
+  it('finds the four cells that share an edge', () => {
+    for (const g of [rows, columns, grid]) {
+      const centre = (p: { x: number; y: number }) => {
+        const top = cellToPixel(g, p.x, p.y);
+        return { x: top.x, y: top.y + 16 };
+      };
+      for (const [cx, cy] of [
+        [3, 2],
+        [4, 3],
+      ] as const) {
+        const c = centre({ x: cx, y: cy });
+        const offsets = neighbours(g, cx, cy)
+          .map(centre)
+          .map((n) => `${n.x - c.x},${n.y - c.y}`)
+          .sort();
+        expect(offsets).toEqual(['-32,-16', '-32,16', '32,-16', '32,16']);
+      }
+    }
+  });
+
+  it('draws every cell once, back to front', () => {
+    for (const g of [rows, columns]) {
+      const order = [...drawOrder(g)];
+      expect(new Set(order.map((p) => `${p.x},${p.y}`)).size).toBe(g.width * g.height);
+      const bottoms = order.map((p) => cellToPixel(g, p.x, p.y).y);
+      for (let i = 1; i < bottoms.length; i++) {
+        expect(bottoms[i]).toBeGreaterThanOrEqual(bottoms[i - 1]!);
+      }
+    }
+  });
+
+  it('flood fills along the diamond edges', () => {
+    const map = createMap(4, 4, 64, 32, { axis: 'y', index: 'odd' });
+    // Column 1 is a zigzag wall, so the fill from (0, 0) stays in column 0.
+    for (let y = 0; y < 4; y++) setTile(map, 0, 1, y, 2);
+    const changed = floodFill(map, 0, 0, 0, 3).map((c) => c.index);
+    expect(changed.sort((a, b) => a - b)).toEqual([0, 4, 8, 12]);
+  });
+
+  it('round trips through tmj', () => {
+    const map = createMap(3, 5, 64, 32, { axis: 'x', index: 'even' });
+    setTile(map, 0, 2, 4, 7);
+    const tmj = toTmj(map, GENERATED_TILESET);
+    expect(tmj).toMatchObject({ orientation: 'staggered', staggeraxis: 'x', staggerindex: 'even' });
+    expect(fromTmj(JSON.parse(JSON.stringify(tmj))).map).toEqual(map);
   });
 });
 

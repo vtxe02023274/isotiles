@@ -1,4 +1,4 @@
-import type { Grid } from './iso.js';
+import { inBounds, neighbours, type Grid, type Stagger } from './iso.js';
 
 export interface Layer {
   name: string;
@@ -11,12 +11,19 @@ export interface TileMap extends Grid {
   layers: Layer[];
 }
 
-export function createMap(width: number, height: number, tileWidth = 64, tileHeight = 32): TileMap {
+export function createMap(
+  width: number,
+  height: number,
+  tileWidth = 64,
+  tileHeight = 32,
+  stagger?: Stagger,
+): TileMap {
   return {
     width,
     height,
     tileWidth,
     tileHeight,
+    ...(stagger ? { stagger } : {}),
     layers: [newLayer('Ground', width, height), newLayer('Objects', width, height)],
   };
 }
@@ -91,10 +98,9 @@ export function floodFill(
     changes.push({ layer, index, before: target, after: gid });
     const x = index % map.width;
     const y = (index - x) / map.width;
-    if (x > 0) stack.push(index - 1);
-    if (x < map.width - 1) stack.push(index + 1);
-    if (y > 0) stack.push(index - map.width);
-    if (y < map.height - 1) stack.push(index + map.width);
+    for (const n of neighbours(map, x, y)) {
+      if (inBounds(map, n.x, n.y)) stack.push(n.y * map.width + n.x);
+    }
   }
   return changes;
 }

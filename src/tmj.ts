@@ -34,6 +34,8 @@ interface TmjTileset {
 export interface Tmj {
   type: 'map';
   orientation: string;
+  staggeraxis?: string;
+  staggerindex?: string;
   width: number;
   height: number;
   tilewidth: number;
@@ -51,7 +53,8 @@ export function toTmj(map: TileMap, tileset: TilesetInfo): Tmj {
     type: 'map',
     version: '1.10',
     tiledversion: '1.12.2',
-    orientation: 'isometric',
+    orientation: map.stagger ? 'staggered' : 'isometric',
+    ...(map.stagger ? { staggeraxis: map.stagger.axis, staggerindex: map.stagger.index } : {}),
     renderorder: 'right-down',
     width: map.width,
     height: map.height,
@@ -101,15 +104,17 @@ export interface ImportedMap {
 }
 
 /**
- * Reads an isometric Tiled JSON map. Supports CSV tile layers (the default
+ * Reads an isometric or staggered Tiled JSON map. Supports CSV tile layers (the default
  * in Tiled) inside groups, with one embedded image tileset. Flip flags are
  * dropped since the editor has no tile rotation.
  */
 export function fromTmj(json: unknown): ImportedMap {
   const tmj = json as Tmj;
   if (tmj?.type !== 'map') throw new TmjError('not a Tiled JSON map');
-  if (tmj.orientation !== 'isometric') {
-    throw new TmjError(`orientation is ${tmj.orientation}, only isometric maps are supported`);
+  if (tmj.orientation !== 'isometric' && tmj.orientation !== 'staggered') {
+    throw new TmjError(
+      `orientation is ${tmj.orientation}, only isometric and staggered maps are supported`,
+    );
   }
   if (tmj.infinite) throw new TmjError('infinite maps are not supported');
   if (tmj.tilesets.length !== 1) {
@@ -129,6 +134,14 @@ export function fromTmj(json: unknown): ImportedMap {
     height: tmj.height,
     tileWidth: tmj.tilewidth,
     tileHeight: tmj.tileheight,
+    ...(tmj.orientation === 'staggered'
+      ? {
+          stagger: {
+            axis: tmj.staggeraxis === 'x' ? 'x' : 'y',
+            index: tmj.staggerindex === 'even' ? 'even' : 'odd',
+          },
+        }
+      : {}),
     layers: [],
   };
 

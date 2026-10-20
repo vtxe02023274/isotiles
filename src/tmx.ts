@@ -91,6 +91,8 @@ export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tm
   return {
     type: 'map',
     orientation: map.getAttribute('orientation') ?? 'orthogonal',
+    staggeraxis: map.getAttribute('staggeraxis') ?? undefined,
+    staggerindex: map.getAttribute('staggerindex') ?? undefined,
     width: int(map, 'width'),
     height: int(map, 'height'),
     tilewidth: int(map, 'tilewidth'),

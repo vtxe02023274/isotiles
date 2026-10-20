@@ -15,11 +15,12 @@ The same map exported and rendered by Tiled's `tmxrasterizer`, with the same pos
 ## Features
 
 - Paint, erase, fill, rectangle and pick, and a whole drag undoes in one step
+- Isometric or staggered maps (rows or columns shifted), with picking, rectangles and flood fill following the diamond edges; both stagger axes render pixel for pixel the same as Tiled's `tmxrasterizer`
 - Multiple layers that can be hidden
 - 16 built in tiles (ground, blocks, trees, a lamp post), all drawn in code with no third party art
 - Tiles taller than the grid (walls, trees) sit on the bottom of their cell, the same way Tiled draws them
 - Exports the whole map as a PNG
-- Exports .tmj plus a tileset PNG; opens isometric maps saved by Tiled as .tmj or .tmx (CSV, base64, zlib and gzip layers, one image tileset, tile offsets and groups), including Tiled's own `isometric_grass_and_water.tmx` example
+- Exports .tmj plus a tileset PNG; opens isometric and staggered maps saved by Tiled as .tmj or .tmx (CSV, base64, zlib and gzip layers, one image tileset, tile offsets and groups), including Tiled's own `isometric_grass_and_water.tmx` example
 - The current map is kept in the browser between visits
 
 | Action                                  | Keys                        |

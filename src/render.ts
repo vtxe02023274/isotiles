@@ -39,22 +39,35 @@ export function render(
   const hw = map.tileWidth / 2;
   const hh = map.tileHeight / 2;
 
+  const diamond = (top: Point) => {
+    ctx.moveTo(top.x, top.y);
+    ctx.lineTo(top.x + hw, top.y + hh);
+    ctx.lineTo(top.x, top.y + 2 * hh);
+    ctx.lineTo(top.x - hw, top.y + hh);
+    ctx.closePath();
+  };
+
   // Drawn over the first layer so it shows on top of the ground but under objects.
   const drawGrid = () => {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     ctx.lineWidth = 1 / view.zoom;
     ctx.beginPath();
-    for (let i = 0; i <= map.height; i++) {
-      const a = cellToPixel(map, 0, i);
-      const b = cellToPixel(map, map.width, i);
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-    }
-    for (let i = 0; i <= map.width; i++) {
-      const a = cellToPixel(map, i, 0);
-      const b = cellToPixel(map, i, map.height);
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+    if (map.stagger) {
+      // Staggered rows have no straight lines through the map.
+      for (const { x, y } of drawOrder(map)) diamond(cellToPixel(map, x, y));
+    } else {
+      for (let i = 0; i <= map.height; i++) {
+        const a = cellToPixel(map, 0, i);
+        const b = cellToPixel(map, map.width, i);
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      }
+      for (let i = 0; i <= map.width; i++) {
+        const a = cellToPixel(map, i, 0);
+        const b = cellToPixel(map, i, map.height);
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      }
     }
     ctx.stroke();
   };
@@ -106,32 +119,31 @@ export function render(
     const y0 = Math.min(a.y, b.y);
     const x1 = Math.max(a.x, b.x) + 1;
     const y1 = Math.max(a.y, b.y) + 1;
-    const corners = [
-      cellToPixel(map, x0, y0),
-      cellToPixel(map, x1, y0),
-      cellToPixel(map, x1, y1),
-      cellToPixel(map, x0, y1),
-    ];
     ctx.fillStyle = 'rgba(255, 224, 138, 0.15)';
     ctx.strokeStyle = '#ffe08a';
     ctx.lineWidth = 2 / view.zoom;
     ctx.beginPath();
-    corners.forEach((c, i) => (i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y)));
-    ctx.closePath();
+    if (map.stagger) {
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) diamond(cellToPixel(map, x, y));
+    } else {
+      const corners = [
+        cellToPixel(map, x0, y0),
+        cellToPixel(map, x1, y0),
+        cellToPixel(map, x1, y1),
+        cellToPixel(map, x0, y1),
+      ];
+      corners.forEach((c, i) => (i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y)));
+      ctx.closePath();
+    }
     ctx.fill();
     ctx.stroke();
   }
 
   if (overlay.hover) {
-    const top = cellToPixel(map, overlay.hover.x, overlay.hover.y);
     ctx.strokeStyle = '#ffe08a';
     ctx.lineWidth = 2 / view.zoom;
     ctx.beginPath();
-    ctx.moveTo(top.x, top.y);
-    ctx.lineTo(top.x + hw, top.y + hh);
-    ctx.lineTo(top.x, top.y + 2 * hh);
-    ctx.lineTo(top.x - hw, top.y + hh);
-    ctx.closePath();
+    diamond(cellToPixel(map, overlay.hover.x, overlay.hover.y));
     ctx.stroke();
   }
 }

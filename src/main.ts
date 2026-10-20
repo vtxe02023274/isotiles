@@ -405,7 +405,9 @@ $('#new').addEventListener('click', () => {
   const w = Number($<HTMLInputElement>('#new-width').value);
   const h = Number($<HTMLInputElement>('#new-height').value);
   if (!(w >= 1 && w <= 256 && h >= 1 && h <= 256)) return showStatus('size must be 1 to 256');
-  map = createMap(w, h, 64, 32);
+  const layout = $<HTMLSelectElement>('#new-layout').value;
+  const stagger = layout ? { axis: layout as 'x' | 'y', index: 'odd' as const } : undefined;
+  map = createMap(w, h, 64, 32, stagger);
   tileset = { ...GENERATED_TILESET, source: generated };
   tileNames = GENERATED_TILE_NAMES;
   layer = 0;

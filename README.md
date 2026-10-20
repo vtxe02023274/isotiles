@@ -15,11 +15,12 @@
 ## 功能
 
 - 畫筆、橡皮擦、油漆桶、矩形、滴管，拖曳一筆可以一次復原
+- 等角或交錯式（staggered，橫列或直行錯開）地圖，交錯式的格子、選取、填滿都照菱形相鄰；用 Tiled 的 `tmxrasterizer` 比對過兩種方向，逐像素相同
 - 多圖層，可隱藏
 - 內建 16 種圖塊（地面、方塊、樹、路燈），全部用程式畫，沒有第三方素材
 - 比格子高的圖塊（牆、樹）底部貼齊格子下緣，跟 Tiled 的畫法一樣
 - 匯出整張地圖 PNG
-- 匯出 .tmj ＋ tileset PNG；匯入 Tiled 存的等角地圖 .tmj 或 .tmx（CSV、base64、zlib、gzip 圖層，單一圖片 tileset，支援 tileoffset 和群組），Tiled 自帶的 `isometric_grass_and_water.tmx` 可以直接開
+- 匯出 .tmj ＋ tileset PNG；匯入 Tiled 存的等角或交錯式地圖 .tmj 或 .tmx（CSV、base64、zlib、gzip 圖層，單一圖片 tileset，支援 tileoffset 和群組），Tiled 自帶的 `isometric_grass_and_water.tmx` 可以直接開
 - 瀏覽器會自動存目前的地圖
 
 | 操作                             | 按鍵                     |
