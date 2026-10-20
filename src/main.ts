@@ -145,15 +145,23 @@ let painting = false;
 let rect: { a: Point; b: Point } | undefined;
 let panning: { x: number; y: number; vx: number; vy: number } | undefined;
 let spaceHeld = false;
+// The pointer driving the current stroke, rectangle or pan. Other pointers
+// (a second finger, a mouse next to a pen) are ignored until it lifts.
+let activePointer: number | undefined;
 
 canvas.addEventListener('pointerdown', (e) => {
+  if (activePointer !== undefined) return;
+  activePointer = e.pointerId;
   canvas.setPointerCapture(e.pointerId);
   if (e.button === 1 || e.button === 2 || spaceHeld) {
     panning = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
     return;
   }
   const cell = cellAt(e);
-  if (!cell) return;
+  if (!cell) {
+    activePointer = undefined;
+    return;
+  }
   if (tool === 'rect') {
     rect = { a: cell, b: cell };
     dirty = true;
@@ -162,10 +170,14 @@ canvas.addEventListener('pointerdown', (e) => {
   history.begin();
   painting = tool === 'paint' || tool === 'erase';
   applyTool(cell);
-  if (!painting) history.end();
+  if (!painting) {
+    history.end();
+    activePointer = undefined;
+  }
 });
 
 canvas.addEventListener('pointermove', (e) => {
+  if (activePointer !== undefined && e.pointerId !== activePointer) return;
   if (panning) {
     view.x = panning.vx - ((e.clientX - panning.x) * devicePixelRatio) / view.zoom;
     view.y = panning.vy - ((e.clientY - panning.y) * devicePixelRatio) / view.zoom;
@@ -182,7 +194,9 @@ canvas.addEventListener('pointermove', (e) => {
   updateStatus();
 });
 
-const endStroke = () => {
+const endStroke = (e: PointerEvent) => {
+  if (e.pointerId !== activePointer) return;
+  activePointer = undefined;
   if (rect) {
     history.record(fillRect(map, layer, rect.a, rect.b, selected));
     rect = undefined;

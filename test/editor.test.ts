@@ -169,6 +169,18 @@ describe('editing', () => {
     expect(getTile(map, 0, 2, 1)).toBe(5);
   });
 
+  it('keeps the open stroke when begin is called again', () => {
+    const map = createMap(2, 1);
+    const history = new History(() => map);
+    history.begin();
+    history.record(setTile(map, 0, 0, 0, 5));
+    history.begin();
+    history.record(setTile(map, 0, 1, 0, 6));
+    history.end();
+    expect(history.undo()).toBe(true);
+    expect(Array.from(map.layers[0]!.data)).toEqual([0, 0]);
+  });
+
   it('drops redo after a new edit', () => {
     const map = createMap(2, 2);
     const history = new History(() => map);

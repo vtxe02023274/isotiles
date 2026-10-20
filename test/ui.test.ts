@@ -19,8 +19,12 @@ const stubContext = (canvas: HTMLCanvasElement): unknown => {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const pointer = (type: string, x: number, y: number) =>
-  new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, button: 0, bubbles: true });
+const pointer = (type: string, x: number, y: number, pointerId = 1) =>
+  new PointerEvent(type, { clientX: x, clientY: y, pointerId, button: 0, bubbles: true });
+
+const view = () => document.querySelector<HTMLCanvasElement>('#view')!;
+
+const undo = () => dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }));
 
 function saved(): number[][] {
   const tmj = JSON.parse(localStorage.getItem('isotiles.map')!) as { layers: { data: number[] }[] };
@@ -49,9 +53,8 @@ function clickPalette(index: number, tileWidth: number, tileHeight: number): voi
 
 /** Paints one cell near the middle of the view with the current tool. */
 function paintCenter(): void {
-  const view = document.querySelector<HTMLCanvasElement>('#view')!;
-  view.dispatchEvent(pointer('pointerdown', 400, 300));
-  view.dispatchEvent(pointer('pointerup', 400, 300));
+  view().dispatchEvent(pointer('pointerdown', 400, 300));
+  view().dispatchEvent(pointer('pointerup', 400, 300));
 }
 
 beforeAll(async () => {
@@ -87,5 +90,18 @@ describe('editor page', () => {
     const ground = saved()[0]!;
     expect(ground).not.toContain(30);
     expect(ground).toContain(1);
+  });
+
+  it('ignores a second pointer while a stroke is open', async () => {
+    document.querySelector<HTMLButtonElement>('#new')!.click();
+    view().dispatchEvent(pointer('pointerdown', 400, 300, 1));
+    view().dispatchEvent(pointer('pointerdown', 300, 300, 2));
+    view().dispatchEvent(pointer('pointerup', 300, 300, 2));
+    view().dispatchEvent(pointer('pointermove', 420, 300, 1));
+    view().dispatchEvent(pointer('pointerup', 420, 300, 1));
+    undo();
+    await wait(600);
+
+    expect(saved()[0]!.every((gid) => gid === 0)).toBe(true);
   });
 });
