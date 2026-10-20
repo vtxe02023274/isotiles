@@ -1,14 +1,37 @@
 import { inBounds, neighbours, type Grid, type Stagger } from './iso.js';
 
+/** Tiled keeps flip and rotation flags in the top four bits of a gid. */
+export const GID_MASK = 0x0fffffff;
+
 export interface Layer {
   name: string;
   visible: boolean;
-  /** Tile ids, row by row. 0 is empty, otherwise tile index + 1 like Tiled gids. */
+  /**
+   * Tile ids, row by row. 0 is empty, otherwise tile index + 1 like Tiled gids,
+   * with the flip flags of an imported map kept in the top bits.
+   */
   data: Uint32Array;
+  /** Fields of an imported Tiled layer the editor does not edit, such as opacity. */
+  extra?: Record<string, unknown>;
 }
+
+/**
+ * An imported Tiled layer the editor keeps as it is: a tile layer, given as
+ * the index of its editor layer, or any other layer as read, with groups
+ * holding more of them.
+ */
+export type KeptLayer =
+  number | { type: string; name: string; layers?: KeptLayer[]; [key: string]: unknown };
 
 export interface TileMap extends Grid {
   layers: Layer[];
+  /** Parts of an imported Tiled map the editor does not edit, written back on export. */
+  extra?: {
+    /** Map fields such as properties. */
+    fields: Record<string, unknown>;
+    /** The imported layer tree. Editor layers missing from it are added at the end. */
+    layers?: KeptLayer[];
+  };
 }
 
 export function createMap(

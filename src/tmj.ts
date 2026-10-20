@@ -1,8 +1,5 @@
-import { newLayer, type TileMap } from './map.js';
+import { GID_MASK, newLayer, type KeptLayer, type TileMap } from './map.js';
 import type { TilesetInfo } from './tileset.js';
-
-/** Tiled stores flip flags in the top bits of a gid. */
-const GID_MASK = 0x0fffffff;
 
 interface TmjLayer {
   type: string;
@@ -13,6 +10,8 @@ interface TmjLayer {
   data?: number[] | string;
   encoding?: string;
   layers?: TmjLayer[];
+  id?: number;
+  [key: string]: unknown;
 }
 
 interface TmjTileset {
@@ -46,9 +45,90 @@ export interface Tmj {
   [key: string]: unknown;
 }
 
-/** Writes a Tiled JSON map with one embedded tileset. */
+/** Map fields toTmj works out itself. Any other field read from a file is kept. */
+const MAP_FIELDS = new Set([
+  'type',
+  'version',
+  'tiledversion',
+  'orientation',
+  'staggeraxis',
+  'staggerindex',
+  'width',
+  'height',
+  'tilewidth',
+  'tileheight',
+  'infinite',
+  'nextlayerid',
+  'layers',
+  'tilesets',
+]);
+const MAP_DEFAULTS: Record<string, unknown> = { renderorder: 'right-down', nextobjectid: 1 };
+
+/** Tile layer fields toTmj works out itself. */
+const LAYER_FIELDS = new Set([
+  'type',
+  'id',
+  'name',
+  'x',
+  'y',
+  'width',
+  'height',
+  'visible',
+  'data',
+]);
+const LAYER_DEFAULTS: Record<string, unknown> = { opacity: 1 };
+
+/** The fields of `from` that are not known and differ from what toTmj writes anyway. */
+function otherFields(from: object, known: Set<string>, defaults: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(from)) {
+    if (known.has(key) || value === undefined) continue;
+    if (JSON.stringify(value) === JSON.stringify(defaults[key])) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+/**
+ * Writes a Tiled JSON map with one embedded tileset. For an imported map the
+ * layers, groups and fields the editor does not edit are written back as they
+ * were read; layer ids are numbered again.
+ */
 export function toTmj(map: TileMap, tileset: TilesetInfo): Tmj {
   const rows = Math.ceil(tileset.tileCount / tileset.columns);
+
+  let id = 1;
+  const written = new Set<number>();
+  const tileLayer = (i: number, prefix: string): TmjLayer => {
+    const layer = map.layers[i]!;
+    written.add(i);
+    return {
+      type: 'tilelayer',
+      id: id++,
+      name: layer.name.startsWith(prefix) ? layer.name.slice(prefix.length) : layer.name,
+      x: 0,
+      y: 0,
+      width: map.width,
+      height: map.height,
+      opacity: 1,
+      ...layer.extra,
+      // A layer shown in its file but hidden by its group stays shown.
+      visible: layer.visible || layer.extra?.visible === true,
+      data: Array.from(layer.data),
+    };
+  };
+  const walk = (kept: KeptLayer[], prefix: string): TmjLayer[] =>
+    kept.flatMap((node): TmjLayer[] => {
+      if (typeof node === 'number')
+        return node < map.layers.length ? [tileLayer(node, prefix)] : [];
+      const layer = { ...node, id: id++ } as TmjLayer;
+      if (layer.type === 'group') layer.layers = walk(node.layers ?? [], `${prefix}${layer.name}/`);
+      return [layer];
+    });
+  const layers = walk(map.extra?.layers ?? [], '');
+  // Layers added in the editor go on top.
+  map.layers.forEach((_, i) => written.has(i) || layers.push(tileLayer(i, '')));
+
   return {
     type: 'map',
     version: '1.10',
@@ -61,20 +141,10 @@ export function toTmj(map: TileMap, tileset: TilesetInfo): Tmj {
     tilewidth: map.tileWidth,
     tileheight: map.tileHeight,
     infinite: false,
-    nextlayerid: map.layers.length + 1,
     nextobjectid: 1,
-    layers: map.layers.map((layer, i) => ({
-      type: 'tilelayer',
-      id: i + 1,
-      name: layer.name,
-      x: 0,
-      y: 0,
-      width: map.width,
-      height: map.height,
-      opacity: 1,
-      visible: layer.visible,
-      data: Array.from(layer.data),
-    })),
+    ...map.extra?.fields,
+    nextlayerid: id,
+    layers,
     tilesets: [
       {
         firstgid: 1,
@@ -105,8 +175,9 @@ export interface ImportedMap {
 
 /**
  * Reads an isometric or staggered Tiled JSON map. Supports CSV tile layers (the default
- * in Tiled) inside groups, with one embedded image tileset. Flip flags are
- * dropped since the editor has no tile rotation.
+ * in Tiled) inside groups, with one embedded image tileset. Everything else
+ * (other layer types, properties, layer opacity and offsets, flip flags) is
+ * kept on the map so toTmj can write it back.
  */
 export function fromTmj(json: unknown): ImportedMap {
   const tmj = json as Tmj;
@@ -146,13 +217,21 @@ export function fromTmj(json: unknown): ImportedMap {
   };
 
   // A hidden group hides everything inside it, like in Tiled.
-  const visit = (layers: TmjLayer[], prefix: string, visible: boolean) => {
+  const visit = (layers: TmjLayer[], prefix: string, visible: boolean): KeptLayer[] => {
+    const kept: KeptLayer[] = [];
     for (const l of layers) {
+      // Layer ids are numbered again on export.
+      const { layers: children, ...rest } = l;
+      delete rest.id;
       if (l.type === 'group') {
-        visit(l.layers ?? [], `${prefix}${l.name}/`, visible && l.visible !== false);
+        const shown = visible && l.visible !== false;
+        kept.push({ ...rest, layers: visit(children ?? [], `${prefix}${l.name}/`, shown) });
         continue;
       }
-      if (l.type !== 'tilelayer') continue;
+      if (l.type !== 'tilelayer') {
+        kept.push(rest);
+        continue;
+      }
       if (typeof l.data === 'string' || l.encoding) {
         throw new TmjError(`layer ${l.name}: set the layer format to CSV in Tiled`);
       }
@@ -162,13 +241,26 @@ export function fromTmj(json: unknown): ImportedMap {
       for (let i = 0; i < layer.data.length && i < data.length; i++) {
         const gid = data[i]! & GID_MASK;
         const local = gid - ts.firstgid + 1;
-        layer.data[i] = gid && local > 0 && local <= tileCount ? local : 0;
+        // Flip flags stay in the top bits.
+        layer.data[i] = gid && local > 0 && local <= tileCount ? local | (data[i]! & ~GID_MASK) : 0;
       }
+      const extra = otherFields(l, LAYER_FIELDS, LAYER_DEFAULTS);
+      if (layer.visible !== (l.visible !== false)) extra.visible = true;
+      if (Object.keys(extra).length) layer.extra = extra;
+      kept.push(map.layers.length);
       map.layers.push(layer);
     }
+    return kept;
   };
-  visit(tmj.layers, '', true);
+  const kept = visit(tmj.layers, '', true);
   if (!map.layers.length) map.layers.push(newLayer('Ground', map.width, map.height));
+
+  // The layer tree is only kept when it is more than the tile layers in order.
+  const plain = kept.every((node, i) => node === i);
+  const fields = otherFields(tmj, MAP_FIELDS, MAP_DEFAULTS);
+  if (!plain || Object.keys(fields).length) {
+    map.extra = { fields, ...(plain ? {} : { layers: kept }) };
+  }
 
   return {
     map,

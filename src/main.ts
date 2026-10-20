@@ -4,6 +4,7 @@ import {
   fillRect,
   floodFill,
   getTile,
+  GID_MASK,
   History,
   newLayer,
   setTile,
@@ -128,7 +129,7 @@ function applyTool(cell: Point): void {
       history.record(floodFill(map, layer, cell.x, cell.y, selected));
       break;
     case 'pick': {
-      const gid = getTile(map, layer, cell.x, cell.y);
+      const gid = getTile(map, layer, cell.x, cell.y) & GID_MASK;
       if (gid) {
         selected = gid;
         setTool('paint');
