@@ -125,7 +125,7 @@ describe('staggered', () => {
     const map = createMap(4, 4, 64, 32, { axis: 'y', index: 'odd' });
     // Column 1 is a zigzag wall, so the fill from (0, 0) stays in column 0.
     for (let y = 0; y < 4; y++) setTile(map, 0, 1, y, 2);
-    const changed = floodFill(map, 0, 0, 0, 3).map((c) => c.index);
+    const changed = [...floodFill(map, 0, 0, 0, 3)].map((c) => c.index);
     expect(changed.sort((a, b) => a - b)).toEqual([0, 4, 8, 12]);
   });
 
@@ -147,7 +147,7 @@ describe('editing', () => {
     expect(getTile(map, 0, 1, 4)).toBe(3);
     expect(getTile(map, 0, 2, 2)).toBe(9);
     expect(getTile(map, 0, 3, 0)).toBe(0);
-    expect(floodFill(map, 0, 0, 0, 3)).toEqual([]);
+    expect(floodFill(map, 0, 0, 0, 3)).toHaveLength(0);
   });
 
   it('undoes a whole stroke in one step and redoes it', () => {
@@ -209,6 +209,33 @@ describe('editing', () => {
     expect(history.redo()).toBe(false);
     history.end();
     expect(Array.from(map.layers[0]!.data)).toEqual([0, 2]);
+  });
+
+  it('caps the history by cells, not by steps', () => {
+    const map = createMap(8, 8);
+    // Each fill changes all 64 cells; three of them do not fit in 150.
+    const history = new History(() => map, 150);
+    for (const gid of [1, 2, 3]) history.record(floodFill(map, 0, 0, 0, gid));
+    expect(history.size).toBeLessThanOrEqual(150);
+    expect(history.undo()).toBe(true);
+    expect(history.undo()).toBe(true);
+    expect(getTile(map, 0, 7, 7)).toBe(1);
+    expect(history.undo()).toBe(false);
+
+    // Many small strokes add up the same way.
+    const many = new History(() => map, 150);
+    for (let i = 0; i < 1000; i++) many.record(setTile(map, 0, i % 8, 0, (i % 2) + 4));
+    expect(many.size).toBeLessThanOrEqual(150);
+  });
+
+  it('keeps the latest step even when it alone is over the cap', () => {
+    const map = createMap(8, 8);
+    const history = new History(() => map, 10);
+    history.record(floodFill(map, 0, 0, 0, 1));
+    expect(history.undo()).toBe(true);
+    expect(getTile(map, 0, 3, 3)).toBe(0);
+    expect(history.redo()).toBe(true);
+    expect(getTile(map, 0, 3, 3)).toBe(1);
   });
 
   it('drops redo after a new edit', () => {
@@ -290,6 +317,6 @@ describe('fillRect', () => {
     expect(getTile(map, 0, 1, 1)).toBe(6);
     expect(getTile(map, 0, 2, 3)).toBe(6);
     expect(getTile(map, 0, 0, 1)).toBe(0);
-    expect(fillRect(map, 0, { x: 1, y: 1 }, { x: 2, y: 3 }, 6)).toEqual([]);
+    expect(fillRect(map, 0, { x: 1, y: 1 }, { x: 2, y: 3 }, 6)).toHaveLength(0);
   });
 });

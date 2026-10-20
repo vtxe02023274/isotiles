@@ -44,6 +44,72 @@ export interface CellChange {
   after: number;
 }
 
+/**
+ * Changed cells packed four numbers per cell (layer, index, before, after)
+ * into one typed array, so a fill over a big map stays small in memory.
+ */
+export class Changes {
+  length = 0;
+  private cells = new Uint32Array(64);
+
+  add(layer: number, index: number, before: number, after: number): void {
+    this.reserve(1);
+    const at = this.length * 4;
+    this.cells[at] = layer;
+    this.cells[at + 1] = index;
+    this.cells[at + 2] = before;
+    this.cells[at + 3] = after;
+    this.length++;
+  }
+
+  push(changes: CellChange | Changes): void {
+    if (changes instanceof Changes) {
+      this.reserve(changes.length);
+      this.cells.set(changes.cells.subarray(0, changes.length * 4), this.length * 4);
+      this.length += changes.length;
+    } else {
+      this.add(changes.layer, changes.index, changes.before, changes.after);
+    }
+  }
+
+  private reserve(count: number): void {
+    const needed = (this.length + count) * 4;
+    if (needed <= this.cells.length) return;
+    const grown = new Uint32Array(Math.max(needed, this.cells.length * 2));
+    grown.set(this.cells);
+    this.cells = grown;
+  }
+
+  /** A copy without the spare room at the end. */
+  compact(): Changes {
+    const copy = new Changes();
+    copy.cells = this.cells.slice(0, this.length * 4);
+    copy.length = this.length;
+    return copy;
+  }
+
+  /** Writes the cells back as they were before (undo) or after the change. */
+  apply(map: TileMap, undo: boolean): void {
+    const c = this.cells;
+    if (undo) {
+      for (let at = (this.length - 1) * 4; at >= 0; at -= 4) {
+        map.layers[c[at]!]!.data[c[at + 1]!] = c[at + 2]!;
+      }
+    } else {
+      for (let at = 0; at < this.length * 4; at += 4) {
+        map.layers[c[at]!]!.data[c[at + 1]!] = c[at + 3]!;
+      }
+    }
+  }
+
+  *[Symbol.iterator](): IterableIterator<CellChange> {
+    const c = this.cells;
+    for (let at = 0; at < this.length * 4; at += 4) {
+      yield { layer: c[at]!, index: c[at + 1]!, before: c[at + 2]!, after: c[at + 3]! };
+    }
+  }
+}
+
 export function setTile(
   map: TileMap,
   layer: number,
@@ -66,8 +132,8 @@ export function fillRect(
   a: { x: number; y: number },
   b: { x: number; y: number },
   gid: number,
-): CellChange[] {
-  const changes: CellChange[] = [];
+): Changes {
+  const changes = new Changes();
   for (let y = Math.min(a.y, b.y); y <= Math.max(a.y, b.y); y++) {
     for (let x = Math.min(a.x, b.x); x <= Math.max(a.x, b.x); x++) {
       const change = setTile(map, layer, x, y, gid);
@@ -84,18 +150,18 @@ export function floodFill(
   cx: number,
   cy: number,
   gid: number,
-): CellChange[] {
+): Changes {
+  const changes = new Changes();
   const data = map.layers[layer]!.data;
   const target = data[cy * map.width + cx]!;
-  if (target === gid) return [];
+  if (target === gid) return changes;
 
-  const changes: CellChange[] = [];
   const stack = [cy * map.width + cx];
   while (stack.length) {
     const index = stack.pop()!;
     if (data[index] !== target) continue;
     data[index] = gid;
-    changes.push({ layer, index, before: target, after: gid });
+    changes.add(layer, index, target, gid);
     const x = index % map.width;
     const y = (index - x) / map.width;
     for (const n of neighbours(map, x, y)) {
@@ -105,33 +171,43 @@ export function floodFill(
   return changes;
 }
 
+/** What one step costs against the history cap: its cells plus the array itself. */
+const stepCost = (group: Changes) => group.length + 8;
+
 /**
  * Undo history. Edits made during one drag are grouped, so a stroke is
- * undone in one step.
+ * undone in one step. The history is capped by the number of cells it holds
+ * (about 16 bytes each); the oldest steps go first, the latest always stays.
  */
 export class History {
-  private readonly undoStack: CellChange[][] = [];
-  private readonly redoStack: CellChange[][] = [];
-  private open: CellChange[] | undefined;
+  private readonly undoStack: Changes[] = [];
+  private readonly redoStack: Changes[] = [];
+  private open: Changes | undefined;
+  private held = 0;
 
   constructor(
     private readonly map: () => TileMap,
-    private readonly limit = 200,
+    private readonly maxCells = 1 << 22,
   ) {}
+
+  /** Cells held for undo and redo, counted with stepCost. */
+  get size(): number {
+    return this.held;
+  }
 
   /** Starts a stroke. If one is already open it keeps collecting into it. */
   begin(): void {
-    this.open ??= [];
+    this.open ??= new Changes();
   }
 
-  record(changes: CellChange | CellChange[] | undefined): void {
-    if (!changes) return;
-    const list = Array.isArray(changes) ? changes : [changes];
-    if (!list.length) return;
+  record(changes: CellChange | Changes | undefined): void {
+    if (!changes || (changes instanceof Changes && !changes.length)) return;
     if (this.open) {
-      this.open.push(...list);
+      this.open.push(changes);
     } else {
-      this.push(list);
+      const group = new Changes();
+      group.push(changes);
+      this.push(group);
     }
   }
 
@@ -144,7 +220,7 @@ export class History {
     this.flush();
     const group = this.undoStack.pop();
     if (!group) return false;
-    for (let i = group.length - 1; i >= 0; i--) this.apply(group[i]!, true);
+    group.apply(this.map(), true);
     this.redoStack.push(group);
     return true;
   }
@@ -153,7 +229,7 @@ export class History {
     this.flush();
     const group = this.redoStack.pop();
     if (!group) return false;
-    for (const change of group) this.apply(change, false);
+    group.apply(this.map(), false);
     this.undoStack.push(group);
     return true;
   }
@@ -162,6 +238,7 @@ export class History {
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.open = undefined;
+    this.held = 0;
   }
 
   /**
@@ -171,16 +248,17 @@ export class History {
   private flush(): void {
     if (!this.open?.length) return;
     this.push(this.open);
-    this.open = [];
+    this.open = new Changes();
   }
 
-  private push(group: CellChange[]): void {
-    this.undoStack.push(group);
-    if (this.undoStack.length > this.limit) this.undoStack.shift();
+  private push(group: Changes): void {
+    for (const dropped of this.redoStack) this.held -= stepCost(dropped);
     this.redoStack.length = 0;
-  }
-
-  private apply(change: CellChange, undo: boolean): void {
-    this.map().layers[change.layer]!.data[change.index] = undo ? change.before : change.after;
+    const kept = group.compact();
+    this.undoStack.push(kept);
+    this.held += stepCost(kept);
+    while (this.held > this.maxCells && this.undoStack.length > 1) {
+      this.held -= stepCost(this.undoStack.shift()!);
+    }
   }
 }
