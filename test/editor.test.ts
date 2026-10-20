@@ -181,6 +181,36 @@ describe('editing', () => {
     expect(Array.from(map.layers[0]!.data)).toEqual([0, 0]);
   });
 
+  it('undo during a stroke closes it first, so nothing undone comes back', () => {
+    const map = createMap(2, 1);
+    const history = new History(() => map);
+    history.record(setTile(map, 0, 0, 0, 1));
+    history.begin();
+    history.record(setTile(map, 0, 0, 0, 2));
+    expect(history.undo()).toBe(true);
+    expect(Array.from(map.layers[0]!.data)).toEqual([1, 0]);
+    // The stroke goes on after the undo and is its own step.
+    history.record(setTile(map, 0, 1, 0, 3));
+    history.end();
+    expect(history.undo()).toBe(true);
+    expect(Array.from(map.layers[0]!.data)).toEqual([1, 0]);
+    expect(history.undo()).toBe(true);
+    expect(Array.from(map.layers[0]!.data)).toEqual([0, 0]);
+    expect(history.undo()).toBe(false);
+  });
+
+  it('redo during a stroke with new edits does nothing', () => {
+    const map = createMap(2, 1);
+    const history = new History(() => map);
+    history.record(setTile(map, 0, 0, 0, 1));
+    history.undo();
+    history.begin();
+    history.record(setTile(map, 0, 1, 0, 2));
+    expect(history.redo()).toBe(false);
+    history.end();
+    expect(Array.from(map.layers[0]!.data)).toEqual([0, 2]);
+  });
+
   it('drops redo after a new edit', () => {
     const map = createMap(2, 2);
     const history = new History(() => map);
