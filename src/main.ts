@@ -411,6 +411,7 @@ $('#new').addEventListener('click', () => {
   tileset = { ...GENERATED_TILESET, source: generated };
   tileNames = GENERATED_TILE_NAMES;
   layer = 0;
+  selected = 1;
   history.clear();
   refreshLayers();
   drawPalette();
