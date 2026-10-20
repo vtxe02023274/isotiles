@@ -313,6 +313,18 @@ $('#export').addEventListener('click', () => {
   download('map.tmj', new Blob([json], { type: 'application/json' }));
 });
 
+$('#export-image').addEventListener('click', () => {
+  // Tall tiles reach above the top row and past the right edge.
+  const top = Math.max(0, tileset.tileHeight - map.tileHeight);
+  const right = Math.max(0, tileset.tileWidth - map.tileWidth);
+  const size = mapPixelSize(map);
+  const image = document.createElement('canvas');
+  image.width = size.x + right;
+  image.height = size.y + top;
+  render(image.getContext('2d')!, map, tileset, { x: 0, y: -top, zoom: 1 }, { grid: false });
+  image.toBlob((blob) => blob && download('map.png', blob), 'image/png');
+});
+
 $('#export-tileset').addEventListener('click', () => {
   if (tileset.source === generated) {
     generated.toBlob((blob) => blob && download(tileset.image, blob), 'image/png');

@@ -18,6 +18,7 @@ The same map exported and rendered by Tiled's `tmxrasterizer`, with the same pos
 - Multiple layers that can be hidden
 - 16 built in tiles (ground, blocks, trees, a lamp post), all drawn in code with no third party art
 - Tiles taller than the grid (walls, trees) sit on the bottom of their cell, the same way Tiled draws them
+- Exports the whole map as a PNG
 - Exports .tmj plus a tileset PNG; opens isometric maps saved by Tiled (CSV layers, one image tileset, groups are fine)
 - The current map is kept in the browser between visits
 
