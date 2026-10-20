@@ -43,6 +43,18 @@ describe('tmxToTmj', () => {
     expect(tileset).toMatchObject({ columns: 4, tileCount: 24, offsetX: 0, offsetY: 16 });
   });
 
+  it('hides the layers of a hidden group', async () => {
+    const tmj = await tmxToTmj(
+      map(`<group name="g" visible="0"><group name="h"><layer name="a" width="2" height="2"><data encoding="csv">1,1,1,1</data></layer></group></group>
+ <group name="v"><layer name="b" width="2" height="2"><data encoding="csv">1,1,1,1</data></layer></group>`),
+      decompress,
+    );
+    expect(fromTmj(tmj).map.layers.map((l) => [l.name, l.visible])).toEqual([
+      ['g/h/a', false],
+      ['v/b', true],
+    ]);
+  });
+
   it('rejects what it cannot read', async () => {
     await expect(tmxToTmj('<nope/>', decompress)).rejects.toThrow(/no <map>/);
     await expect(

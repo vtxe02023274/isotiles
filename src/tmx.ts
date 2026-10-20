@@ -51,7 +51,12 @@ export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tm
     const out: Tmj['layers'] = [];
     for (const el of [...parent.children]) {
       if (el.tagName === 'group') {
-        out.push({ type: 'group', name: el.getAttribute('name') ?? '', layers: await layers(el) });
+        out.push({
+          type: 'group',
+          name: el.getAttribute('name') ?? '',
+          visible: el.getAttribute('visible') !== '0',
+          layers: await layers(el),
+        });
       } else if (el.tagName === 'layer') {
         const data = el.querySelector(':scope > data');
         out.push({

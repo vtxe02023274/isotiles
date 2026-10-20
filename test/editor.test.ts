@@ -252,6 +252,23 @@ describe('tmj', () => {
     expect(Array.from(map.layers[0]!.data)).toEqual([1, 3]);
   });
 
+  it('hides the layers of a hidden group', () => {
+    const tmj = toTmj(createMap(1, 1), GENERATED_TILESET);
+    tmj.layers = [
+      {
+        type: 'group',
+        name: 'g',
+        visible: false,
+        layers: [{ type: 'tilelayer', name: 'a', visible: true, data: [1] }],
+      },
+      { type: 'tilelayer', name: 'b', data: [1] },
+    ];
+    expect(fromTmj(tmj).map.layers.map((l) => [l.name, l.visible])).toEqual([
+      ['g/a', false],
+      ['b', true],
+    ]);
+  });
+
   it('explains what it cannot read', () => {
     const base = () => toTmj(createMap(1, 1), GENERATED_TILESET);
     expect(() => fromTmj({ ...base(), orientation: 'orthogonal' })).toThrow(/only isometric/);
