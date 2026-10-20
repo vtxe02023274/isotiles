@@ -1,5 +1,14 @@
 import { inBounds, mapPixelSize, pixelToCell, type Point } from './iso.js';
-import { createMap, floodFill, getTile, History, newLayer, setTile, type TileMap } from './map.js';
+import {
+  createMap,
+  fillRect,
+  floodFill,
+  getTile,
+  History,
+  newLayer,
+  setTile,
+  type TileMap,
+} from './map.js';
 import { render, screenToMap, type View } from './render.js';
 import {
   drawGeneratedTileset,
@@ -10,7 +19,7 @@ import {
 } from './tileset.js';
 import { fromTmj, toTmj, TmjError } from './tmj.js';
 
-type Tool = 'paint' | 'erase' | 'fill' | 'pick';
+type Tool = 'paint' | 'erase' | 'fill' | 'rect' | 'pick';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const canvas = $<HTMLCanvasElement>('#view');
@@ -132,6 +141,7 @@ function applyTool(cell: Point): void {
 }
 
 let painting = false;
+let rect: { a: Point; b: Point } | undefined;
 let panning: { x: number; y: number; vx: number; vy: number } | undefined;
 let spaceHeld = false;
 
@@ -143,6 +153,11 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   const cell = cellAt(e);
   if (!cell) return;
+  if (tool === 'rect') {
+    rect = { a: cell, b: cell };
+    dirty = true;
+    return;
+  }
   history.begin();
   painting = tool === 'paint' || tool === 'erase';
   applyTool(cell);
@@ -161,11 +176,18 @@ canvas.addEventListener('pointermove', (e) => {
     hover = cell;
     dirty = true;
     if (painting && cell) applyTool(cell);
+    if (rect && cell) rect.b = cell;
   }
   updateStatus();
 });
 
 const endStroke = () => {
+  if (rect) {
+    history.record(fillRect(map, layer, rect.a, rect.b, selected));
+    rect = undefined;
+    dirty = true;
+    scheduleSave();
+  }
   if (painting) history.end();
   painting = false;
   panning = undefined;
@@ -214,7 +236,7 @@ addEventListener('keydown', (e) => {
     spaceHeld = true;
     e.preventDefault();
   } else if (!mod) {
-    const key: Record<string, Tool> = { b: 'paint', e: 'erase', f: 'fill', i: 'pick' };
+    const key: Record<string, Tool> = { b: 'paint', e: 'erase', f: 'fill', r: 'rect', i: 'pick' };
     const t = key[e.key.toLowerCase()];
     if (t) setTool(t);
   }
@@ -407,6 +429,7 @@ function frame(): void {
     dirty = false;
     render(ctx, map, tileset, view, {
       hover,
+      rect,
       preview: tool === 'paint' ? selected : 0,
       previewLayer: layer,
       grid: gridToggle.checked,

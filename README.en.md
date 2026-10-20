@@ -14,7 +14,7 @@ The same map exported and rendered by Tiled's `tmxrasterizer`, with the same pos
 
 ## Features
 
-- Paint, erase, fill and pick, and a whole drag undoes in one step
+- Paint, erase, fill, rectangle and pick, and a whole drag undoes in one step
 - Multiple layers that can be hidden
 - 16 built in tiles (ground, blocks, trees, a lamp post), all drawn in code with no third party art
 - Tiles taller than the grid (walls, trees) sit on the bottom of their cell, the same way Tiled draws them
@@ -22,12 +22,12 @@ The same map exported and rendered by Tiled's `tmxrasterizer`, with the same pos
 - Exports .tmj plus a tileset PNG; opens isometric maps saved by Tiled (CSV layers, one image tileset, groups are fine)
 - The current map is kept in the browser between visits
 
-| Action                      | Keys                        |
-| --------------------------- | --------------------------- |
-| Paint / erase / fill / pick | B / E / F / I               |
-| Pan                         | right drag, or Space + drag |
-| Zoom                        | wheel                       |
-| Undo / redo                 | Ctrl+Z / Ctrl+Y             |
+| Action                                  | Keys                        |
+| --------------------------------------- | --------------------------- |
+| Paint / erase / fill / rectangle / pick | B / E / F / R / I           |
+| Pan                                     | right drag, or Space + drag |
+| Zoom                                    | wheel                       |
+| Undo / redo                             | Ctrl+Z / Ctrl+Y             |
 
 ## Opening in Tiled
 

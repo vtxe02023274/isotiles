@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cellToPixel, drawOrder, mapPixelSize, pixelToCell, type Grid } from '../src/iso.js';
-import { createMap, floodFill, getTile, History, setTile } from '../src/map.js';
+import { createMap, fillRect, floodFill, getTile, History, setTile } from '../src/map.js';
 import { GENERATED_TILESET } from '../src/tileset.js';
 import { fromTmj, toTmj, TmjError } from '../src/tmj.js';
 
@@ -132,5 +132,16 @@ describe('tmj', () => {
     b64.layers[0] = { type: 'tilelayer', name: 'x', data: 'AAAA', encoding: 'base64' };
     expect(() => fromTmj(b64)).toThrow(/CSV/);
     expect(() => fromTmj({})).toThrow(TmjError);
+  });
+});
+
+describe('fillRect', () => {
+  it('fills between corners given in any order', () => {
+    const map = createMap(4, 4);
+    expect(fillRect(map, 0, { x: 2, y: 3 }, { x: 1, y: 1 }, 6)).toHaveLength(6);
+    expect(getTile(map, 0, 1, 1)).toBe(6);
+    expect(getTile(map, 0, 2, 3)).toBe(6);
+    expect(getTile(map, 0, 0, 1)).toBe(0);
+    expect(fillRect(map, 0, { x: 1, y: 1 }, { x: 2, y: 3 }, 6)).toEqual([]);
   });
 });

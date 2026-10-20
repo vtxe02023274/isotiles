@@ -11,6 +11,8 @@ export interface View {
 
 export interface Overlay {
   hover?: Point;
+  /** Cells between two corners being dragged with the rectangle tool. */
+  rect?: { a: Point; b: Point };
   /** Tile to preview under the cursor, 0 for none. */
   preview?: number;
   previewLayer?: number;
@@ -85,6 +87,28 @@ export function render(
   });
 
   if (map.layers.length < 2 && overlay.grid) drawGrid();
+
+  if (overlay.rect) {
+    const { a, b } = overlay.rect;
+    const x0 = Math.min(a.x, b.x);
+    const y0 = Math.min(a.y, b.y);
+    const x1 = Math.max(a.x, b.x) + 1;
+    const y1 = Math.max(a.y, b.y) + 1;
+    const corners = [
+      cellToPixel(map, x0, y0),
+      cellToPixel(map, x1, y0),
+      cellToPixel(map, x1, y1),
+      cellToPixel(map, x0, y1),
+    ];
+    ctx.fillStyle = 'rgba(255, 224, 138, 0.15)';
+    ctx.strokeStyle = '#ffe08a';
+    ctx.lineWidth = 2 / view.zoom;
+    ctx.beginPath();
+    corners.forEach((c, i) => (i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y)));
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
 
   if (overlay.hover) {
     const top = cellToPixel(map, overlay.hover.x, overlay.hover.y);

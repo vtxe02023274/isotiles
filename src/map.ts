@@ -52,6 +52,24 @@ export function setTile(
   return { layer, index, before, after: gid };
 }
 
+/** Sets every cell between two corners, inclusive, in any order. */
+export function fillRect(
+  map: TileMap,
+  layer: number,
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  gid: number,
+): CellChange[] {
+  const changes: CellChange[] = [];
+  for (let y = Math.min(a.y, b.y); y <= Math.max(a.y, b.y); y++) {
+    for (let x = Math.min(a.x, b.x); x <= Math.max(a.x, b.x); x++) {
+      const change = setTile(map, layer, x, y, gid);
+      if (change) changes.push(change);
+    }
+  }
+  return changes;
+}
+
 /** Replaces the connected area of equal tiles around (cx, cy), 4-way. */
 export function floodFill(
   map: TileMap,
