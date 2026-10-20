@@ -119,8 +119,9 @@ export class History {
     private readonly limit = 200,
   ) {}
 
+  /** Starts a stroke. If one is already open it keeps collecting into it. */
   begin(): void {
-    this.open = [];
+    this.open ??= [];
   }
 
   record(changes: CellChange | CellChange[] | undefined): void {
