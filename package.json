@@ -1,0 +1,27 @@
+{
+  "name": "isotiles",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isometric tile map editor in the browser that exports Tiled maps.",
+  "license": "MIT",
+  "author": "冷牛",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --format=esm --target=es2022 --minify --sourcemap --outfile=site/main.js && node -e \"require('fs').copyFileSync('public/index.html','site/index.html')\"",
+    "dev": "npm run build && node -e \"require('http').createServer((q,s)=>{const f=require('path').join('site',q.url==='/'?'index.html':q.url.split('?')[0]);require('fs').readFile(f,(e,d)=>{if(e){s.writeHead(404);return s.end()}s.writeHead(200,{'content-type':f.endsWith('.js')?'text/javascript':f.endsWith('.html')?'text/html':'application/octet-stream'});s.end(d)})}).listen(5190,()=>console.log('http://localhost:5190'))\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^20.19.43",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.10",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^4.1.12"
+  }
+}
