@@ -141,6 +141,7 @@ export class History {
   }
 
   undo(): boolean {
+    this.flush();
     const group = this.undoStack.pop();
     if (!group) return false;
     for (let i = group.length - 1; i >= 0; i--) this.apply(group[i]!, true);
@@ -149,6 +150,7 @@ export class History {
   }
 
   redo(): boolean {
+    this.flush();
     const group = this.redoStack.pop();
     if (!group) return false;
     for (const change of group) this.apply(change, false);
@@ -160,6 +162,16 @@ export class History {
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.open = undefined;
+  }
+
+  /**
+   * Closes the edits of an open stroke as their own step before undo or redo,
+   * and keeps the stroke open so the rest of it is the next step.
+   */
+  private flush(): void {
+    if (!this.open?.length) return;
+    this.push(this.open);
+    this.open = [];
   }
 
   private push(group: CellChange[]): void {
