@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>isotiles</title>
+    <style>
+      :root {
+        --bg: #14171f;
+        --panel: #1c2029;
+        --line: #2c3242;
+        --text: #e6e6e6;
+        --muted: #9aa3b2;
+        --accent: #ffe08a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          13px/1.4 system-ui,
+          sans-serif;
+      }
+      body {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        grid-template-rows: 1fr auto;
+      }
+      aside {
+        grid-row: 1 / 3;
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+        padding: 12px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      h1 {
+        font-size: 16px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 0 0 6px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+      button,
+      select,
+      input[type='number'],
+      .file {
+        background: #262b36;
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 4px 8px;
+        font: inherit;
+        cursor: pointer;
+      }
+      input[type='number'] {
+        width: 56px;
+      }
+      button[aria-pressed='true'] {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .file input {
+        display: none;
+      }
+      #palette {
+        width: 100%;
+        image-rendering: pixelated;
+        cursor: pointer;
+        background: #11141b;
+        border: 1px solid var(--line);
+      }
+      main {
+        position: relative;
+        overflow: hidden;
+      }
+      #view {
+        position: absolute;
+        inset: 0;
+        touch-action: none;
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 4px 12px;
+        font-family: monospace;
+        color: var(--muted);
+        white-space: pre;
+        overflow: hidden;
+      }
+      .hint {
+        color: var(--muted);
+      }
+      @media (max-width: 700px) {
+        body {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto 60vh auto;
+        }
+        aside {
+          grid-row: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <h1>isotiles</h1>
+      <section>
+        <h2>Tools</h2>
+        <div class="row">
+          <button data-tool="paint" title="B">Paint</button>
+          <button data-tool="erase" title="E">Erase</button>
+          <button data-tool="fill" title="F">Fill</button>
+          <button data-tool="pick" title="I">Pick</button>
+        </div>
+      </section>
+      <section>
+        <h2>Layer</h2>
+        <div class="row">
+          <select id="layer"></select>
+          <label><input id="layer-visible" type="checkbox" /> visible</label>
+          <button id="add-layer">Add</button>
+        </div>
+        <label class="row"><input id="grid" type="checkbox" checked /> grid</label>
+      </section>
+      <section>
+        <h2>Tiles</h2>
+        <canvas id="palette"></canvas>
+      </section>
+      <section>
+        <h2>Map</h2>
+        <div class="row">
+          <input id="new-width" type="number" min="1" max="256" value="16" />
+          x
+          <input id="new-height" type="number" min="1" max="256" value="16" />
+          <button id="new">New</button>
+        </div>
+        <div class="row" style="margin-top: 6px">
+          <button id="export">Export .tmj</button>
+          <button id="export-tileset">Tileset .png</button>
+          <label class="file"
+            >Open .tmj<input id="import" type="file" accept=".tmj,.json,image/png" multiple
+          /></label>
+        </div>
+      </section>
+      <p class="hint">
+        Right drag or Space + drag to pan, wheel to zoom, Ctrl+Z / Ctrl+Y to undo and redo. Exported
+        maps open in Tiled as isometric maps; keep isotiles.png next to map.tmj.
+      </p>
+    </aside>
+    <main><canvas id="view"></canvas></main>
+    <footer id="status"></footer>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
