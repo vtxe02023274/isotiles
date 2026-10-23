@@ -1,4 +1,4 @@
-import { cellToPixel, drawOrder, type Point } from './iso.js';
+import { cellToPixel, drawOrder, mapPixelSize, type Point } from './iso.js';
 import { GID_MASK, type TileMap } from './map.js';
 import { tileRect, type Tileset } from './tileset.js';
 
@@ -7,6 +7,28 @@ export interface View {
   x: number;
   y: number;
   zoom: number;
+}
+
+/**
+ * Canvas size and view that fit the whole drawn map: tiles taller or wider
+ * than a cell, and the tileset's tile offset, reach past the grid.
+ */
+export function imageFrame(
+  map: TileMap,
+  tileset: Pick<Tileset, 'tileWidth' | 'tileHeight' | 'offsetX' | 'offsetY'>,
+): { width: number; height: number; view: View } {
+  const ox = tileset.offsetX ?? 0;
+  const oy = tileset.offsetY ?? 0;
+  const left = Math.max(0, -ox);
+  const right = Math.max(0, tileset.tileWidth - map.tileWidth + ox);
+  const top = Math.max(0, tileset.tileHeight - map.tileHeight - oy);
+  const bottom = Math.max(0, oy);
+  const size = mapPixelSize(map);
+  return {
+    width: size.x + left + right,
+    height: size.y + top + bottom,
+    view: { x: 0 - left, y: 0 - top, zoom: 1 },
+  };
 }
 
 export interface Overlay {

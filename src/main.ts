@@ -10,7 +10,7 @@ import {
   setTile,
   type TileMap,
 } from './map.js';
-import { render, screenToMap, type View } from './render.js';
+import { imageFrame, render, screenToMap, type View } from './render.js';
 import {
   drawGeneratedTileset,
   GENERATED_TILE_NAMES,
@@ -360,14 +360,11 @@ $('#export').addEventListener('click', () => {
 });
 
 $('#export-image').addEventListener('click', () => {
-  // Tall tiles reach above the top row and past the right edge.
-  const top = Math.max(0, tileset.tileHeight - map.tileHeight);
-  const right = Math.max(0, tileset.tileWidth - map.tileWidth);
-  const size = mapPixelSize(map);
+  const frame = imageFrame(map, tileset);
   const image = document.createElement('canvas');
-  image.width = size.x + right;
-  image.height = size.y + top;
-  render(image.getContext('2d')!, map, tileset, { x: 0, y: -top, zoom: 1 }, { grid: false });
+  image.width = frame.width;
+  image.height = frame.height;
+  render(image.getContext('2d')!, map, tileset, frame.view, { grid: false });
   image.toBlob((blob) => blob && download('map.png', blob), 'image/png');
 });
 

@@ -10,6 +10,7 @@ import {
 import { createMap, fillRect, floodFill, getTile, History, newLayer, setTile } from '../src/map.js';
 import { GENERATED_TILESET } from '../src/tileset.js';
 import { fromTmj, toTmj, TmjError, type Tmj } from '../src/tmj.js';
+import { imageFrame } from '../src/render.js';
 
 const grid: Grid = { width: 10, height: 6, tileWidth: 64, tileHeight: 32 };
 
@@ -410,5 +411,29 @@ describe('fillRect', () => {
     expect(getTile(map, 0, 2, 3)).toBe(6);
     expect(getTile(map, 0, 0, 1)).toBe(0);
     expect(fillRect(map, 0, { x: 1, y: 1 }, { x: 2, y: 3 }, 6)).toHaveLength(0);
+  });
+});
+
+describe('image export', () => {
+  const map = createMap(4, 4);
+  const size = mapPixelSize(map);
+
+  it('makes room for tiles taller and wider than a cell', () => {
+    const frame = imageFrame(map, { tileWidth: 64, tileHeight: 64 });
+    expect(frame).toEqual({ width: size.x, height: size.y + 32, view: { x: 0, y: -32, zoom: 1 } });
+  });
+
+  it('makes room for the tile offset in every direction', () => {
+    expect(imageFrame(map, { tileWidth: 64, tileHeight: 64, offsetY: 16 })).toEqual({
+      width: size.x,
+      height: size.y + 16 + 16,
+      view: { x: 0, y: -16, zoom: 1 },
+    });
+    expect(imageFrame(map, { tileWidth: 64, tileHeight: 32, offsetX: -8, offsetY: -40 })).toEqual({
+      width: size.x + 8,
+      height: size.y + 40,
+      view: { x: -8, y: -40, zoom: 1 },
+    });
+    expect(imageFrame(map, { tileWidth: 64, tileHeight: 32, offsetX: 12 }).width).toBe(size.x + 12);
   });
 });
