@@ -136,6 +136,56 @@ lines</property></properties></object>
     ]);
   });
 
+  it('keeps tileset properties, tile animations and collision shapes through export', async () => {
+    const tmx = `<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" orientation="isometric" renderorder="right-down" width="1" height="1" tilewidth="64" tileheight="32" infinite="0">
+ <tileset firstgid="1" name="iso" tilewidth="64" tileheight="64" tilecount="4" columns="4" objectalignment="bottom">
+  <properties><property name="biome" value="grass"/></properties>
+  <image source="iso.png" trans="ff00ff" width="256" height="64"/>
+  <tile id="0" class="water" probability="0.5">
+   <properties><property name="speed" type="int" value="2"/></properties>
+   <animation><frame tileid="1" duration="100"/><frame tileid="2" duration="150"/></animation>
+  </tile>
+  <tile id="3">
+   <objectgroup draworder="index"><object id="1" x="0" y="32" width="64" height="32"/></objectgroup>
+  </tile>
+ </tileset>
+ <layer name="l" width="1" height="1"><data encoding="csv">1</data></layer>
+</map>`;
+    const imported = fromTmj(await tmxToTmj(tmx, decompress));
+    const ts = toTmj(imported.map, imported.tileset).tilesets[0] as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(ts).toMatchObject({
+      objectalignment: 'bottom',
+      transparentcolor: '#ff00ff',
+      properties: [{ name: 'biome', type: 'string', value: 'grass' }],
+      tiles: [
+        {
+          id: 0,
+          type: 'water',
+          probability: 0.5,
+          properties: [{ name: 'speed', type: 'int', value: 2 }],
+          animation: [
+            { tileid: 1, duration: 100 },
+            { tileid: 2, duration: 150 },
+          ],
+        },
+        {
+          id: 3,
+          objectgroup: {
+            type: 'objectgroup',
+            draworder: 'index',
+            objects: [{ id: 1, x: 0, y: 32, width: 64, height: 32 }],
+          },
+        },
+      ],
+    });
+    expect(ts.firstgid).toBe(1);
+    expect(ts.image).toBe('iso.png');
+  });
+
   it('rejects what it cannot read', async () => {
     await expect(tmxToTmj('<nope/>', decompress)).rejects.toThrow(/no <map>/);
     await expect(

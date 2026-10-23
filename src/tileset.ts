@@ -14,6 +14,8 @@ export interface TilesetInfo {
   /** Tiled's tileoffset: shifts every tile of the set when drawn. */
   offsetX?: number;
   offsetY?: number;
+  /** Tileset fields from an imported map the editor does not use, written back on export. */
+  extra?: Record<string, unknown>;
 }
 
 export interface Tileset extends TilesetInfo {

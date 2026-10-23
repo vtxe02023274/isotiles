@@ -124,6 +124,60 @@ function object(el: Element): Fields {
  * base64, uncompressed, zlib or gzip. Object groups, image layers and
  * properties are converted too, so they can be written back on export.
  */
+/** Tileset attributes the importer reads itself. */
+const TILESET_ATTRIBUTES = new Set([
+  'firstgid',
+  'source',
+  'name',
+  'tilewidth',
+  'tileheight',
+  'tilecount',
+  'columns',
+  'margin',
+  'spacing',
+  'version',
+  'tiledversion',
+]);
+
+/** A <tile> of a tileset: class, probability, properties, animation and collision shapes. */
+function tile(el: Element): Fields {
+  const { class: tileClass, probability, ...rest } = attributes(el);
+  const frames = [...el.querySelectorAll(':scope > animation > frame')].map((f) => ({
+    tileid: Number(f.getAttribute('tileid') ?? 0),
+    duration: Number(f.getAttribute('duration') ?? 0),
+  }));
+  const collision = el.querySelector(':scope > objectgroup');
+  return {
+    ...rest,
+    ...(tileClass !== undefined ? { type: tileClass } : {}),
+    ...(probability !== undefined ? { probability: Number(probability) } : {}),
+    ...properties(el),
+    ...(frames.length ? { animation: frames } : {}),
+    ...(collision
+      ? {
+          objectgroup: {
+            ...attributes(collision),
+            type: 'objectgroup',
+            objects: [...collision.children].filter((c) => c.tagName === 'object').map(object),
+          },
+        }
+      : {}),
+  };
+}
+
+/** What Tiled JSON keeps on a tileset beyond the fields the editor uses. */
+function tilesetExtras(ts: Element, image: Element | null): Fields {
+  const out: Fields = {};
+  for (const [key, value] of Object.entries(attributes(ts))) {
+    if (!TILESET_ATTRIBUTES.has(key)) out[key] = value;
+  }
+  if (image?.hasAttribute('trans')) out.transparentcolor = `#${image.getAttribute('trans')}`;
+  Object.assign(out, properties(ts));
+  const tiles = [...ts.querySelectorAll(':scope > tile')].map(tile);
+  if (tiles.length) out.tiles = tiles;
+  return out;
+}
+
 export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tmj> {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
   if (doc.querySelector('parsererror')) throw new TmjError('not valid XML');
@@ -160,6 +214,7 @@ export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tm
         margin: int(ts, 'margin'),
         spacing: int(ts, 'spacing'),
         ...(offset ? { tileoffset: { x: int(offset, 'x'), y: int(offset, 'y') } } : {}),
+        ...tilesetExtras(ts, image),
       };
     });
 

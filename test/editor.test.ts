@@ -264,6 +264,20 @@ describe('tmj', () => {
     expect(back.tileset).toEqual(GENERATED_TILESET);
   });
 
+  it('writes back tileset fields the editor does not use', () => {
+    const tmj = toTmj(createMap(2, 1), GENERATED_TILESET);
+    const extra = {
+      objectalignment: 'bottom',
+      transparentcolor: '#ff00ff',
+      properties: [{ name: 'x', type: 'int', value: 1 }],
+      tiles: [{ id: 0, animation: [{ tileid: 1, duration: 100 }] }],
+    };
+    Object.assign(tmj.tilesets[0]!, extra);
+    const back = fromTmj(JSON.parse(JSON.stringify(tmj)));
+    expect(back.tileset.extra).toEqual(extra);
+    expect(toTmj(back.map, back.tileset).tilesets[0]).toMatchObject({ ...extra, firstgid: 1 });
+  });
+
   it('reads layers inside groups, keeps flip flags and maps firstgid', () => {
     const tmj = toTmj(createMap(2, 1), GENERATED_TILESET);
     tmj.tilesets[0]!.firstgid = 10;

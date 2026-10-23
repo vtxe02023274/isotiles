@@ -78,6 +78,23 @@ const LAYER_FIELDS = new Set([
 ]);
 const LAYER_DEFAULTS: Record<string, unknown> = { opacity: 1 };
 
+/** Tileset fields toTmj works out itself. */
+const TILESET_FIELDS = new Set([
+  'firstgid',
+  'source',
+  'name',
+  'image',
+  'imagewidth',
+  'imageheight',
+  'tilewidth',
+  'tileheight',
+  'tilecount',
+  'columns',
+  'margin',
+  'spacing',
+  'tileoffset',
+]);
+
 /** The fields of `from` that are not known and differ from what toTmj writes anyway. */
 function otherFields(from: object, known: Set<string>, defaults: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
@@ -148,6 +165,7 @@ export function toTmj(map: TileMap, tileset: TilesetInfo): Tmj {
     tilesets: [
       {
         firstgid: 1,
+        ...tileset.extra,
         name: tileset.name,
         image: tileset.image,
         imagewidth: tileset.columns * tileset.tileWidth,
@@ -258,6 +276,7 @@ export function fromTmj(json: unknown): ImportedMap {
   // The layer tree is only kept when it is more than the tile layers in order.
   const plain = kept.every((node, i) => node === i);
   const fields = otherFields(tmj, MAP_FIELDS, MAP_DEFAULTS);
+  const tilesetExtra = otherFields(ts, TILESET_FIELDS, {});
   if (!plain || Object.keys(fields).length) {
     map.extra = { fields, ...(plain ? {} : { layers: kept }) };
   }
@@ -272,6 +291,7 @@ export function fromTmj(json: unknown): ImportedMap {
       columns: ts.columns,
       tileCount,
       ...(ts.tileoffset ? { offsetX: ts.tileoffset.x, offsetY: ts.tileoffset.y } : {}),
+      ...(Object.keys(tilesetExtra).length ? { extra: tilesetExtra } : {}),
     },
   };
 }

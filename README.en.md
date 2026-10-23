@@ -21,7 +21,7 @@ The same map exported and rendered by Tiled's `tmxrasterizer`, with the same pos
 - Tiles taller than the grid (walls, trees) sit on the bottom of their cell, the same way Tiled draws them
 - Exports the whole map as a PNG
 - Exports .tmj plus a tileset PNG; opens isometric and staggered maps saved by Tiled as .tmj or .tmx (CSV, base64, zlib and gzip layers, one image tileset, tile offsets and groups), including Tiled's own `isometric_grass_and_water.tmx` example
-- Exporting an imported map writes back what the editor does not edit: object and image layers, map and layer properties, layer opacity, offsets and tint, the group structure, and tile flips (kept but not drawn)
+- Exporting an imported map writes back what the editor does not edit: object and image layers, map and layer properties, layer opacity, offsets and tint, the group structure, tileset properties with tile animations and collision shapes, and tile flips (kept but not drawn)
 - The current map is kept in the browser between visits
 
 | Action                                  | Keys                        |
