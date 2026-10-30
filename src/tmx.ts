@@ -165,6 +165,33 @@ function tile(el: Element): Fields {
   };
 }
 
+/** A <wangset> as Tiled JSON writes it: colors and wangtiles. */
+function wangset(el: Element): Fields {
+  const colors = [...el.querySelectorAll(':scope > wangcolor')].map((c) => {
+    const { class: cls, ...rest } = attributes(c);
+    return {
+      ...rest,
+      class: cls ?? '',
+      tile: Number(c.getAttribute('tile') ?? -1),
+      probability: Number(c.getAttribute('probability') ?? 1),
+      ...properties(c),
+    };
+  });
+  const wangtiles = [...el.querySelectorAll(':scope > wangtile')].map((t) => ({
+    tileid: Number(t.getAttribute('tileid') ?? 0),
+    wangid: (t.getAttribute('wangid') ?? '').split(',').map((v) => Number(v.trim()) || 0),
+  }));
+  const { class: cls, ...rest } = attributes(el);
+  return {
+    ...rest,
+    class: cls ?? '',
+    tile: Number(el.getAttribute('tile') ?? -1),
+    colors,
+    wangtiles,
+    ...properties(el),
+  };
+}
+
 /** What Tiled JSON keeps on a tileset beyond the fields the editor uses. */
 function tilesetExtras(ts: Element, image: Element | null): Fields {
   const out: Fields = {};
@@ -173,6 +200,16 @@ function tilesetExtras(ts: Element, image: Element | null): Fields {
   }
   if (image?.hasAttribute('trans')) out.transparentcolor = `#${image.getAttribute('trans')}`;
   Object.assign(out, properties(ts));
+  const grid = ts.querySelector(':scope > grid');
+  if (grid) out.grid = attributes(grid);
+  const transformations = ts.querySelector(':scope > transformations');
+  if (transformations) {
+    out.transformations = Object.fromEntries(
+      [...transformations.attributes].map(({ name, value }) => [name, value === '1']),
+    );
+  }
+  const wangsets = [...ts.querySelectorAll(':scope > wangsets > wangset')].map(wangset);
+  if (wangsets.length) out.wangsets = wangsets;
   const tiles = [...ts.querySelectorAll(':scope > tile')].map(tile);
   if (tiles.length) out.tiles = tiles;
   return out;
@@ -226,7 +263,11 @@ export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tm
         out.push({ ...common, type: 'group', layers: await layers(el) });
       } else if (el.tagName === 'layer') {
         const data = el.querySelector(':scope > data');
-        out.push({ ...common, type: 'tilelayer', data: data ? await readData(data) : [] });
+        out.push({
+          ...common,
+          type: 'tilelayer',
+          data: data ? await readData(data, common.name) : [],
+        });
       } else if (el.tagName === 'objectgroup') {
         const objects = [...el.children].filter((c) => c.tagName === 'object').map(object);
         out.push({ ...common, type: 'objectgroup', objects });
@@ -248,20 +289,32 @@ export async function tmxToTmj(text: string, decompress: Decompress): Promise<Tm
     return out;
   };
 
-  const readData = async (data: Element): Promise<number[]> => {
+  const readData = async (data: Element, layerName: unknown): Promise<number[]> => {
     const encoding = data.getAttribute('encoding');
     const compression = data.getAttribute('compression');
     const text = data.textContent?.trim() ?? '';
     if (data.querySelector('chunk')) throw new TmjError('infinite maps are not supported');
     if (encoding === 'csv') return text.split(',').map((v) => Number(v.trim()) || 0);
-    if (encoding !== 'base64') {
+    if (encoding !== null && encoding !== 'base64') {
+      throw new TmjError(`layer ${layerName}: unknown data encoding "${encoding}"`);
+    }
+    if (encoding === null) {
       // The old plain XML format: one <tile gid="..."/> per cell.
       return [...data.querySelectorAll('tile')].map((t) => int(t, 'gid'));
     }
-    let bytes: Uint8Array = Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
-    if (compression === 'zlib' || compression === 'gzip')
-      bytes = await decompress(bytes, compression);
-    else if (compression)
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+    } catch {
+      throw new TmjError(`layer ${layerName}: tile data is not valid base64`);
+    }
+    if (compression === 'zlib' || compression === 'gzip') {
+      try {
+        bytes = await decompress(bytes, compression);
+      } catch {
+        throw new TmjError(`layer ${layerName}: ${compression} tile data is corrupt`);
+      }
+    } else if (compression)
       throw new TmjError(`${compression} compressed layers are not supported, use CSV`);
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const gids: number[] = [];

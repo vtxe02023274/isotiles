@@ -197,4 +197,49 @@ lines</property></properties></object>
       ),
     ).rejects.toThrow(/zstd/);
   });
+
+  it('keeps the tileset grid, transformations and wangsets', async () => {
+    const tmx = map(
+      '<layer name="a" width="2" height="2"><data encoding="csv">1,2,3,4</data></layer>',
+    ).replace(
+      '<image source="iso.png" width="256" height="384"/>',
+      `<image source="iso.png" width="256" height="384"/>
+  <grid orientation="isometric" width="64" height="32"/>
+  <transformations hflip="1" vflip="0" rotate="0" preferuntransformed="1"/>
+  <wangsets>
+   <wangset name="w" type="corner" tile="-1">
+    <wangcolor name="c" color="#ff0000" tile="2" probability="0.5"/>
+    <wangtile tileid="0" wangid="0,1,0,1,0,1,0,1"/>
+   </wangset>
+  </wangsets>`,
+    );
+    const { tileset } = fromTmj(await tmxToTmj(tmx, decompress));
+    expect(tileset.extra).toMatchObject({
+      grid: { orientation: 'isometric', width: 64, height: 32 },
+      transformations: { hflip: true, vflip: false, rotate: false, preferuntransformed: true },
+      wangsets: [
+        {
+          name: 'w',
+          class: '',
+          type: 'corner',
+          tile: -1,
+          colors: [{ name: 'c', color: '#ff0000', tile: 2, probability: 0.5, class: '' }],
+          wangtiles: [{ tileid: 0, wangid: [0, 1, 0, 1, 0, 1, 0, 1] }],
+        },
+      ],
+    });
+  });
+
+  it('reports damaged or unknown tile data as a TmjError naming the layer', async () => {
+    const layer = (data: string) => map(`<layer name="bad" width="2" height="2">${data}</layer>`);
+    await expect(
+      tmxToTmj(layer('<data encoding="base64">@@@@</data>'), decompress),
+    ).rejects.toThrow(/layer bad: tile data is not valid base64/);
+    await expect(
+      tmxToTmj(layer('<data encoding="base64" compression="zlib">AAAAAA==</data>'), decompress),
+    ).rejects.toThrow(/layer bad: zlib tile data is corrupt/);
+    await expect(
+      tmxToTmj(layer('<data encoding="foo">1,2,3,4</data>'), decompress),
+    ).rejects.toThrow(/layer bad: unknown data encoding "foo"/);
+  });
 });
