@@ -242,4 +242,17 @@ lines</property></properties></object>
       tmxToTmj(layer('<data encoding="foo">1,2,3,4</data>'), decompress),
     ).rejects.toThrow(/layer bad: unknown data encoding "foo"/);
   });
+
+  it('keeps empty polygons empty and rejects non-numeric points', async () => {
+    const objects = (xml: string) =>
+      map(`<objectgroup name="o"><object id="1" x="0" y="0">${xml}</object></objectgroup>`);
+    const tmj = await tmxToTmj(objects('<polygon points=""/>'), decompress);
+    expect(tmj.layers[0]).toMatchObject({ objects: [{ polygon: [] }] });
+    await expect(tmxToTmj(objects('<polygon points="a,b 1,2"/>'), decompress)).rejects.toThrow(
+      /invalid polygon point "a,b"/,
+    );
+    await expect(tmxToTmj(objects('<polyline points="1"/>'), decompress)).rejects.toThrow(
+      /invalid polygon point "1"/,
+    );
+  });
 });

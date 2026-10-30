@@ -84,11 +84,14 @@ function properties(el: Element): Fields {
 
 const points = (text: string | null) =>
   (text ?? '')
-    .trim()
     .split(/\s+/)
+    .filter(Boolean)
     .map((pair) => {
       const [x, y] = pair.split(',').map(Number);
-      return { x: x ?? 0, y: y ?? 0 };
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        throw new TmjError(`invalid polygon point "${pair}"`);
+      }
+      return { x, y };
     });
 
 function object(el: Element): Fields {
