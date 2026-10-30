@@ -186,6 +186,9 @@ export function toTmj(map: TileMap, tileset: TilesetInfo): Tmj {
 
 export class TmjError extends Error {}
 
+/** Cells in one layer; the editor itself stops at 256 x 256, this only keeps a broken file from freezing the page. */
+const MAX_CELLS = 4_000_000;
+
 export interface ImportedMap {
   map: TileMap;
   tileset: TilesetInfo;
@@ -206,14 +209,37 @@ export function fromTmj(json: unknown): ImportedMap {
     );
   }
   if (tmj.infinite) throw new TmjError('infinite maps are not supported');
+  const isCount = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1;
+  if (!isCount(tmj.width) || !isCount(tmj.height) || tmj.width * tmj.height > MAX_CELLS) {
+    throw new TmjError(
+      `map size ${tmj.width}x${tmj.height} must be whole numbers, at most ${MAX_CELLS} cells`,
+    );
+  }
+  const isSize = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+  if (!isSize(tmj.tilewidth) || !isSize(tmj.tileheight)) {
+    throw new TmjError('map tile size must be a positive number');
+  }
+  if (!Array.isArray(tmj.tilesets) || !Array.isArray(tmj.layers)) {
+    throw new TmjError('map has no tilesets or layers list');
+  }
   if (tmj.tilesets.length !== 1) {
     throw new TmjError(`map has ${tmj.tilesets.length} tilesets, exactly one is supported`);
   }
   const ts = tmj.tilesets[0]!;
+  if (typeof ts !== 'object' || ts === null) throw new TmjError('tileset is not an object');
   if (ts.source) throw new TmjError(`external tileset ${ts.source}: embed it in Tiled first`);
   const tileCount = ts.tilecount;
   if (!ts.image || !ts.columns || !ts.tilewidth || !ts.tileheight || !tileCount) {
     throw new TmjError('tileset must be a single image tileset');
+  }
+  if (
+    typeof ts.image !== 'string' ||
+    !isCount(ts.columns) ||
+    !isCount(tileCount) ||
+    !isSize(ts.tilewidth) ||
+    !isSize(ts.tileheight)
+  ) {
+    throw new TmjError('tileset columns, tile count and tile size must be positive numbers');
   }
   if (ts.margin || ts.spacing)
     throw new TmjError('tilesets with margin or spacing are not supported');
@@ -238,6 +264,7 @@ export function fromTmj(json: unknown): ImportedMap {
   const visit = (layers: TmjLayer[], prefix: string, visible: boolean): KeptLayer[] => {
     const kept: KeptLayer[] = [];
     for (const l of layers) {
+      if (typeof l !== 'object' || l === null) throw new TmjError('layer is not an object');
       // Layer ids are numbered again on export.
       const { layers: children, ...rest } = l;
       delete rest.id;
@@ -252,6 +279,9 @@ export function fromTmj(json: unknown): ImportedMap {
       }
       if (typeof l.data === 'string' || l.encoding) {
         throw new TmjError(`layer ${l.name}: set the layer format to CSV in Tiled`);
+      }
+      if (l.data !== undefined && !Array.isArray(l.data)) {
+        throw new TmjError(`layer ${l.name}: tile data is not a list`);
       }
       const layer = newLayer(prefix + l.name, map.width, map.height);
       layer.visible = visible && l.visible !== false;

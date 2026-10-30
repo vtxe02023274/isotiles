@@ -401,6 +401,32 @@ describe('tmj', () => {
     expect(() => fromTmj(b64)).toThrow(/CSV/);
     expect(() => fromTmj({})).toThrow(TmjError);
   });
+
+  it('rejects maps with broken sizes or lists instead of crashing', () => {
+    const base = () => toTmj(createMap(1, 1), GENERATED_TILESET);
+    const bad: Record<string, unknown>[] = [
+      { width: 0 },
+      { width: -1 },
+      { width: 2.5 },
+      { width: 'x' },
+      { width: undefined },
+      { width: 100000, height: 100000 },
+      { tilewidth: 0 },
+      { tileheight: 'a' },
+      { tilesets: undefined },
+      { layers: undefined },
+      { layers: [null] },
+      { tilesets: [null] },
+      { layers: [{ type: 'tilelayer', name: 'x', data: {} }] },
+    ];
+    for (const patch of bad) {
+      expect(() => fromTmj({ ...base(), ...patch }), JSON.stringify(patch)).toThrow(TmjError);
+    }
+    const ts = base().tilesets[0]!;
+    for (const patch of [{ tilewidth: 0 }, { columns: 'a' }, { tilecount: 1e9 + 0.5 }]) {
+      expect(() => fromTmj({ ...base(), tilesets: [{ ...ts, ...patch }] })).toThrow(TmjError);
+    }
+  });
 });
 
 describe('fillRect', () => {
